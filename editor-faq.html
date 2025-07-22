@@ -417,13 +417,14 @@
             setLoading(true);
             const result = await callApi({ action: 'getFaqsAndFilters' });
             setLoading(false);
+
             if (result && result.success) {
                 const normalize = f => ({
-                    rowNumber    : f.rowNumber,
-                    Pregunta     : f.Pregunta  || f.pregunta,
-                    Respuesta    : f.Respuesta || f.respuesta,
-                    Categorias   : f.Categorias|| f.categorias || '',
-                    PalabrasClave: f.PalabrasClave || f.palabrasClave || ''
+                    rowNumber    : f.rowNumber ?? f.row ?? f.row_number ?? f.Row ?? null,
+                    Pregunta     : f.Pregunta  ?? f.pregunta  ?? f.Question ?? f.question ?? '',
+                    Respuesta    : f.Respuesta ?? f.respuesta ?? f.Answer   ?? f.answer   ?? '',
+                    Categorias   : f.Categorias?? f.categorias?? f.Categories ?? f.categories ?? '',
+                    PalabrasClave: f.PalabrasClave ?? f.palabrasClave ?? f.keywords ?? f.Keywords ?? ''
                 });
 
                 const normalizedFaqs = result.data.faqs.map(normalize);
@@ -481,10 +482,11 @@
                     body: JSON.stringify(payload) 
                 });
                 const result = await response.json();
-                if (result.success) {
+                
+                if (!result.success) {
+                    showResult(result.message || 'Error en la respuesta del script.', 'error');
+                } else if (payload.action !== 'getFaqsAndFilters') {
                     handleSuccess(payload.action, result);
-                } else {
-                    showResult(result.message, 'error');
                 }
                 return result;
             } catch (error) {
@@ -522,9 +524,10 @@
             faqs.forEach(faq => {
                 const item = document.createElement('div');
                 item.className = 'faq-item';
-                item.innerHTML = `<p>${faq.Pregunta}</p><div class="faq-item-buttons"><button>Editar</button><button class="delete">Borrar</button></div>`;
+                const qText = faq.Pregunta || faq.pregunta || '(sin pregunta)';
+                item.innerHTML = `<p>${qText}</p><div class="faq-item-buttons"><button>Editar</button><button class="delete">Borrar</button></div>`;
                 item.querySelector('button').addEventListener('click', () => openEditModal(faq));
-                item.querySelector('button.delete').addEventListener('click', () => handleDelete(faq.rowNumber, faq.Pregunta));
+                item.querySelector('button.delete').addEventListener('click', () => handleDelete(faq.rowNumber, qText));
                 faqListContainer.appendChild(item);
             });
         }
@@ -545,9 +548,9 @@
             duplicateAlert.style.display = 'block';
         }
         function openEditModal(faq) {
-            modalRowNumber.value = faq.rowNumber; 
-            modalPregunta.value = faq.Pregunta; 
-            modalRespuesta.value = faq.Respuesta;
+            modalRowNumber.value = faq.rowNumber ?? '';
+            modalPregunta.value = faq.Pregunta ?? faq.pregunta ?? '';
+            modalRespuesta.value = faq.Respuesta ?? faq.respuesta ?? '';
             updateMarkdownPreview(modalRespuesta.value, modalMarkdownPreview);
             clearContainer(modalCategoriasContainer); 
             (faq.Categorias || '').split(/[,;]/).forEach(tag => createTag(tag, modalCategoriasContainer));
