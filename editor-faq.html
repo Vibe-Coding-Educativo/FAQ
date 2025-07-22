@@ -9,10 +9,7 @@
 </head>
 <body>
     <div class="container">
-        <nav>
-            <button class="nav-button active" data-view="add-view">Añadir FAQ</button>
-            <button class="nav-button" data-view="manage-view">Gestionar FAQs</button>
-        </nav>
+        <h1 style="text-align: center;">Añadir FAQ</h1>
         
         <main id="add-view" class="view active">
             <div class="tabs">
@@ -110,61 +107,9 @@
                 <button id="addBtn" style="background-color: var(--success-color);">Aprobar y Añadir a la Hoja de Cálculo</button>
             </div>
         </main>
-
-        <main id="manage-view" class="view">
-            <h2>Gestionar FAQs Existentes</h2>
-            <div class="filters-container">
-                <div class="filter-group">
-                    <h3>Categorías</h3>
-                    <div id="category-filters" class="filter-buttons"></div>
-                </div>
-                <div class="filter-group">
-                    <h3>Palabras Clave</h3>
-                    <div id="keyword-filters" class="filter-buttons"></div>
-                </div>
-            </div>
-            <input type="text" id="searchInput" placeholder="Buscar en la lista filtrada...">
-            <div id="faq-list-container"></div>
-        </main>
         
         <div class="loader" id="loader">🧠 Pensando...</div>
         <div id="result" class="result-message"></div>
-    </div>
-
-    <div class="modal-overlay" id="edit-modal">
-        <div class="modal-content">
-            <h2>Editar FAQ</h2>
-            <input type="hidden" id="modal-row-number">
-            <div class="form-group">
-                <label for="modal-pregunta">Pregunta</label>
-                <input type="text" id="modal-pregunta">
-            </div>
-            <div class="form-group">
-                <label for="modal-respuesta">Respuesta (Markdown)</label>
-                <div class="markdown-editor-container">
-                    <textarea id="modal-respuesta"></textarea>
-                    <div id="modal-markdown-preview"></div>
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="modal-add-categoria">Categorías</label>
-                <div class="tag-input-container">
-                    <input type="text" id="modal-add-categoria" placeholder="Añadir y pulsar Enter...">
-                </div>
-                <div class="tag-container" id="modal-categorias-container"></div>
-            </div>
-            <div class="form-group">
-                <label for="modal-add-palabraclave">Palabras Clave</label>
-                <div class="tag-input-container">
-                    <input type="text" id="modal-add-palabraclave" placeholder="Añadir y pulsar Enter...">
-                </div>
-                <div class="tag-container" id="modal-palabrasclave-container"></div>
-            </div>
-            <div class="modal-buttons">
-                <button id="modal-cancel">Cancelar</button>
-                <button id="modal-save">Guardar Cambios</button>
-            </div>
-        </div>
     </div>
 
     <script src="script.js"></script>
