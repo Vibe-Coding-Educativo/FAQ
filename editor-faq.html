@@ -419,7 +419,6 @@ async function loadAndRenderManageView() {
     const result = await callApi({ action: 'getFaqsAndFilters' });
     setLoading(false);
 
-    // 📋 inspección de la respuesta
     console.log('→ result.data recibido:', JSON.stringify(result.data, null, 2));
 
     const isSuccess = result && (result.success === true || result.ok === true || result.status === 'success');
@@ -428,34 +427,12 @@ async function loadAndRenderManageView() {
         return;
     }
 
-    // 1️⃣ localiza el array de FAQs con nombre flexible
-    const rawFaqs = result.data.faqs ?? result.data.FAQs ?? result.data.faqList ?? result.data.FAQLIST
-                 ?? result.data.records ?? result.data.Records ?? [];
-
-    // 2️⃣ util para recoger la primera clave existente
-    const pick = (obj, ...keys) => {
-        for (const k of keys) {
-            if (k in obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
-        }
-        return '';
-    };
-
-    // 3️⃣ normaliza cada FAQ
-    const normalizedFaqs = rawFaqs.map(f => ({
-        rowNumber    : pick(f, 'rowNumber', 'row', 'Row', 'fila', 'index'),
-        Pregunta     : pick(f, 'Pregunta', 'pregunta', 'Question', 'question'),
-        Respuesta    : pick(f, 'Respuesta', 'respuesta', 'Answer', 'answer'),
-        Categorias   : pick(f, 'Categorias', 'categorias', 'Categories', 'categories'),
-        PalabrasClave: pick(f, 'PalabrasClave', 'palabrasClave', 'Keywords', 'keywords')
-    }));
-
-    // 4️⃣ guarda y ordena
-    allFaqs = normalizedFaqs
+    const rawFaqs = result.data.faqs || [];
+    allFaqs = rawFaqs
         .filter(f => f.Pregunta && f.Pregunta.trim() !== '')
         .sort((a, b) => a.Pregunta.localeCompare(b.Pregunta));
 
-    // 5️⃣ filtros
-    allFilters = result.data.filters ?? { categories: [], keywords: [] };
+    allFilters = result.data.filters || { categories: [], keywords: [] };
     renderFilterButtons();
     applyFiltersAndSearch();
 }
@@ -506,7 +483,7 @@ async function callApi(payload) {
         });
         const result = await response.json();
 
-        // 🔍 registro global
+        // registro global
         console.log(`API result [${payload.action}]:`, result);
 
         const isSuccess = result.success === true || result.ok === true || result.status === 'success';
@@ -516,7 +493,6 @@ async function callApi(payload) {
         } else if (payload.action !== 'getFaqsAndFilters') {
             handleSuccess(payload.action, result);
         }
-
         return result;
     } catch (error) {
         showResult('Error de conexión con el script: ' + error.message, 'error');
