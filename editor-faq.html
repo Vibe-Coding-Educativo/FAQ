@@ -34,7 +34,7 @@
         .tab-button.active { border-bottom-color: var(--primary-color); font-weight: bold; color: var(--primary-color); }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        #faq-list-container { margin-top: 1rem; }
+        #faq-list-container { margin-top: 1rem; max-height: 50vh; overflow-y: auto; }
         .faq-item { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid #eee; }
         .faq-item:last-child { border-bottom: none; }
         .faq-item p { text-align: left; margin: 0; flex-grow: 1; }
@@ -59,6 +59,13 @@
         .refine-section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px dashed #ccc;}
         .checkbox-group { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
         .checkbox-group label { margin-bottom: 0; font-weight: normal; }
+        .filters-container { margin-bottom: 1.5rem; }
+        .filter-group { margin-bottom: 1rem; }
+        .filter-group h3 { font-size: 1rem; margin-bottom: 0.5rem; text-align: left; color: #555; }
+        .filter-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .filter-button { background-color: #ecf0f1; color: var(--dark-gray); border: 1px solid #bdc3c7; border-radius: 20px; padding: 5px 12px; font-size: 0.9rem; cursor: pointer; transition: all 0.2s; margin-top: 0; }
+        .filter-button:hover { background-color: #dce4e6; }
+        .filter-button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
     </style>
 </head>
 <body>
@@ -167,7 +174,17 @@
 
         <main id="manage-view" class="view">
             <h2>Gestionar FAQs Existentes</h2>
-            <input type="text" id="searchInput" placeholder="Buscar por pregunta, respuesta o categoría...">
+            <div class="filters-container">
+                <div class="filter-group">
+                    <h3>Categorías</h3>
+                    <div id="category-filters" class="filter-buttons"></div>
+                </div>
+                <div class="filter-group">
+                    <h3>Palabras Clave</h3>
+                    <div id="keyword-filters" class="filter-buttons"></div>
+                </div>
+            </div>
+            <input type="text" id="searchInput" placeholder="Buscar en la lista filtrada...">
             <div id="faq-list-container"></div>
         </main>
         
@@ -216,12 +233,16 @@
 
         // --- Estado Global ---
         let allFaqs = [];
+        let allFilters = { categories: [], keywords: [] };
+        let activeFilter = { type: null, value: null };
         let duplicateData = {};
         let currentRowToReplace = null;
 
         // --- Elementos del DOM (Generales) ---
         const loader = document.getElementById('loader');
         const resultDiv = document.getElementById('result');
+        
+        // --- Lógica de Navegación Principal ---
         document.querySelectorAll('.nav-button').forEach(button => {
             button.addEventListener('click', (e) => {
                 document.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
@@ -229,7 +250,7 @@
                 document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
                 document.getElementById(e.currentTarget.dataset.view).classList.add('active');
                 if (e.currentTarget.dataset.view === 'manage-view') {
-                    loadAndRenderFaqs();
+                    loadAndRenderManageView();
                 }
             });
         });
@@ -264,6 +285,8 @@
         // --- Elementos del DOM (Vista Gestionar) ---
         const searchInput = document.getElementById('searchInput');
         const faqListContainer = document.getElementById('faq-list-container');
+        const categoryFiltersContainer = document.getElementById('category-filters');
+        const keywordFiltersContainer = document.getElementById('keyword-filters');
 
         // --- Elementos del DOM (Modal Edición) ---
         const editModal = document.getElementById('edit-modal');
@@ -293,7 +316,7 @@
         setupTagInput(addCategoriaInput, categoriasContainer);
         setupTagInput(addPalabraClaveInput, palabrasClaveContainer);
         reviewRespuesta.addEventListener('input', () => updateMarkdownPreview(reviewRespuesta.value, markdownPreview));
-        searchInput.addEventListener('input', handleSearch);
+        searchInput.addEventListener('input', applyFiltersAndSearch);
         modalRespuesta.addEventListener('input', () => updateMarkdownPreview(modalRespuesta.value, modalMarkdownPreview));
         setupTagInput(modalAddCategoria, modalCategoriasContainer);
         setupTagInput(modalAddPalabraClave, modalPalabrasClaveContainer);
@@ -367,24 +390,51 @@
         }
 
         // --- Manejadores de eventos (Vista Gestionar y Modal) ---
-        function handleSearch() {
+        function applyFiltersAndSearch() {
+            let filteredList = [...allFaqs];
             const searchTerm = searchInput.value.toLowerCase();
-            if (!searchTerm) {
-                renderFaqList(allFaqs);
-                return;
+
+            if (activeFilter.type && activeFilter.value) {
+                const key = activeFilter.type === 'category' ? 'Categorias' : 'PalabrasClave';
+                const separator = activeFilter.type === 'category' ? ';' : ',';
+                filteredList = filteredList.filter(faq => 
+                    (faq[key] || '').split(separator).map(t => t.trim()).includes(activeFilter.value)
+                );
             }
-            const filteredFaqs = allFaqs.filter(faq =>
-                Object.values(faq).some(val => val.toString().toLowerCase().includes(searchTerm))
-            );
-            renderFaqList(filteredFaqs);
+
+            if (searchTerm) {
+                filteredList = filteredList.filter(faq => {
+                    const question = faq.Pregunta ? faq.Pregunta.toLowerCase() : '';
+                    const answer = faq.Respuesta ? faq.Respuesta.toLowerCase() : '';
+                    const categories = faq.Categorias ? faq.Categorias.toLowerCase() : '';
+                    const keywords = faq.PalabrasClave ? faq.PalabrasClave.toLowerCase() : '';
+                    return question.includes(searchTerm) || answer.includes(searchTerm) || categories.includes(searchTerm) || keywords.includes(searchTerm);
+                });
+            }
+            renderFaqList(filteredList);
         }
-        async function loadAndRenderFaqs() {
+        async function loadAndRenderManageView() {
             setLoading(true);
-            const result = await callApi({ action: 'getFaqs' });
+            const result = await callApi({ action: 'getFaqsAndFilters' });
             setLoading(false);
             if (result && result.success) {
-                allFaqs = result.data.sort((a, b) => a.Pregunta.localeCompare(b.Pregunta));
-                renderFaqList(allFaqs);
+                const normalize = f => ({
+                    rowNumber    : f.rowNumber,
+                    Pregunta     : f.Pregunta  || f.pregunta,
+                    Respuesta    : f.Respuesta || f.respuesta,
+                    Categorias   : f.Categorias|| f.categorias || '',
+                    PalabrasClave: f.PalabrasClave || f.palabrasClave || ''
+                });
+
+                const normalizedFaqs = result.data.faqs.map(normalize);
+
+                allFaqs = normalizedFaqs
+                    .filter(f => f.Pregunta && f.Pregunta.trim() !== '')
+                    .sort((a, b) => a.Pregunta.localeCompare(b.Pregunta));
+
+                allFilters = result.data.filters;
+                renderFilterButtons();
+                applyFiltersAndSearch();
             }
         }
         async function handleModalSave() {
@@ -401,7 +451,7 @@
             if (result && result.success) {
                 editModal.style.display = 'none';
                 showResult(result.message, 'success');
-                loadAndRenderFaqs();
+                loadAndRenderManageView();
             }
         }
         async function handleDelete(rowNumber, question) {
@@ -411,7 +461,7 @@
                 setLoading(false);
                 if (result && result.success) {
                     showResult(result.message, 'success');
-                    loadAndRenderFaqs();
+                    loadAndRenderManageView();
                 }
             }
         }
@@ -419,9 +469,17 @@
         // --- Lógica principal de la API ---
         async function callApi(payload) {
             setLoading(true);
-            if (payload.action === 'generate' || payload.action === 'bulkAdd') hideAllSections();
+            if (payload.action === 'generate' || payload.action === 'bulkAdd') {
+                hideAllSections();
+            }
             try {
-                const response = await fetch(SCRIPT_URL, { method: 'POST', mode: 'cors', cache: 'no-cache', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+                const response = await fetch(SCRIPT_URL, { 
+                    method: 'POST', 
+                    mode: 'cors', 
+                    cache: 'no-cache', 
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+                    body: JSON.stringify(payload) 
+                });
                 const result = await response.json();
                 if (result.success) {
                     handleSuccess(payload.action, result);
@@ -440,13 +498,16 @@
         function handleSuccess(action, result) {
             if (action === 'add' || action === 'replace' || action === 'bulkAdd') {
                 showResult(result.message || 'Operación completada.', 'success');
-                userInput.value = ''; categorizeQuestion.value = ''; categorizeAnswer.value = ''; bulkInput.value = '';
+                userInput.value = ''; 
+                categorizeQuestion.value = ''; 
+                categorizeAnswer.value = ''; 
+                bulkInput.value = '';
                 currentRowToReplace = null;
                 addBtn.textContent = 'Aprobar y Añadir a la Hoja de Cálculo';
             } else if (result.data && result.data.status === 'duplicate') {
                 populateDuplicateAlert(result.data);
             } else {
-                const suggestion = result.data.status === 'new' ? result.data.suggestion : result.data;
+                const suggestion = (result.data.status === 'new') ? result.data.suggestion : result.data;
                 populateReviewForm(suggestion);
             }
         }
@@ -454,9 +515,9 @@
         // --- Funciones de renderizado y UI ---
         function renderFaqList(faqs) {
             faqListContainer.innerHTML = '';
-            if (faqs.length === 0) {
-                faqListContainer.innerHTML = '<p>No se encontraron FAQs.</p>';
-                return;
+            if (faqs.length === 0) { 
+                faqListContainer.innerHTML = '<p>No se encontraron FAQs.</p>'; 
+                return; 
             }
             faqs.forEach(faq => {
                 const item = document.createElement('div');
@@ -468,12 +529,12 @@
             });
         }
         function populateReviewForm(data) {
-            reviewPregunta.value = data.Pregunta || '';
+            reviewPregunta.value = data.Pregunta || ''; 
             reviewRespuesta.value = data.Respuesta || '';
             updateMarkdownPreview(reviewRespuesta.value, markdownPreview);
-            clearContainer(categoriasContainer);
+            clearContainer(categoriasContainer); 
             (data.Categorias || '').split(/[,;]/).forEach(tag => createTag(tag, categoriasContainer));
-            clearContainer(palabrasClaveContainer);
+            clearContainer(palabrasClaveContainer); 
             (data.PalabrasClave || '').split(/[,;]/).forEach(tag => createTag(tag, palabrasClaveContainer));
             reviewForm.style.display = 'block';
         }
@@ -484,64 +545,94 @@
             duplicateAlert.style.display = 'block';
         }
         function openEditModal(faq) {
-            modalRowNumber.value = faq.rowNumber;
-            modalPregunta.value = faq.Pregunta;
+            modalRowNumber.value = faq.rowNumber; 
+            modalPregunta.value = faq.Pregunta; 
             modalRespuesta.value = faq.Respuesta;
             updateMarkdownPreview(modalRespuesta.value, modalMarkdownPreview);
-            clearContainer(modalCategoriasContainer);
+            clearContainer(modalCategoriasContainer); 
             (faq.Categorias || '').split(/[,;]/).forEach(tag => createTag(tag, modalCategoriasContainer));
-            clearContainer(modalPalabrasClaveContainer);
+            clearContainer(modalPalabrasClaveContainer); 
             (faq.PalabrasClave || '').split(/[,;]/).forEach(tag => createTag(tag, modalPalabrasClaveContainer));
             editModal.style.display = 'flex';
         }
-        function hideAllSections() {
-            reviewForm.style.display = 'none';
-            duplicateAlert.style.display = 'none';
-            resultDiv.style.display = 'none';
+        function hideAllSections() { 
+            reviewForm.style.display = 'none'; 
+            duplicateAlert.style.display = 'none'; 
+            resultDiv.style.display = 'none'; 
         }
         function setLoading(isLoading) {
             loader.style.display = isLoading ? 'block' : 'none';
             const buttons = document.querySelectorAll('button');
             buttons.forEach(btn => btn.disabled = isLoading);
         }
-        function showResult(message, type) {
-            resultDiv.textContent = message;
-            resultDiv.className = `result-message ${type}`;
-            resultDiv.style.display = 'block';
-            setTimeout(() => { resultDiv.style.display = 'none'; }, 4000);
+        function showResult(message, type) { 
+            resultDiv.textContent = message; 
+            resultDiv.className = `result-message ${type}`; 
+            resultDiv.style.display = 'block'; 
+            setTimeout(() => { resultDiv.style.display = 'none'; }, 4000); 
         }
-        function updateMarkdownPreview(markdownText, previewElement) {
-            previewElement.innerHTML = marked.parse(markdownText);
+        function updateMarkdownPreview(markdownText, previewElement) { 
+            previewElement.innerHTML = marked.parse(markdownText); 
         }
-        function setupTagInput(inputElement, container) {
-            inputElement.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    createTag(inputElement.value, container);
-                    inputElement.value = '';
-                }
-            });
+        function setupTagInput(inputElement, container) { 
+            inputElement.addEventListener('keydown', (e) => { 
+                if (e.key === 'Enter') { 
+                    e.preventDefault(); 
+                    createTag(inputElement.value, container); 
+                    inputElement.value = ''; 
+                } 
+            }); 
         }
-        function createTag(text, container) {
-            const tagText = text.trim();
-            if (!tagText) return;
-            const tagEl = document.createElement('div');
-            tagEl.className = 'tag';
-            tagEl.innerHTML = `<span>${tagText}</span><span class="remove-tag" title="Eliminar">x</span>`;
-            tagEl.querySelector('.remove-tag').addEventListener('click', () => tagEl.remove());
-            container.appendChild(tagEl);
+        function createTag(text, container) { 
+            const tagText = text.trim(); 
+            if (!tagText) return; 
+            const tagEl = document.createElement('div'); 
+            tagEl.className = 'tag'; 
+            tagEl.innerHTML = `<span>${tagText}</span><span class="remove-tag" title="Eliminar">x</span>`; 
+            tagEl.querySelector('.remove-tag').addEventListener('click', () => tagEl.remove()); 
+            container.appendChild(tagEl); 
         }
-        function getTagsAsString(container, separator) {
-            return Array.from(container.querySelectorAll('.tag span:first-child')).map(t => t.textContent).join(separator);
+        function getTagsAsString(container, separator) { 
+            return Array.from(container.querySelectorAll('.tag span:first-child')).map(t => t.textContent).join(separator); 
         }
-        function clearContainer(container) {
-            container.innerHTML = '';
+        function clearContainer(container) { 
+            container.innerHTML = ''; 
         }
         function showTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
             document.getElementById(tabName + '-entry-tab').classList.add('active');
             document.querySelector(`.tab-button[data-tab="${tabName}"]`).classList.add('active');
+        }
+        function renderFilterButtons() {
+            renderButtonGroup(categoryFiltersContainer, allFilters.categories, 'category');
+            renderButtonGroup(keywordFiltersContainer, allFilters.keywords, 'keyword');
+        }
+        function renderButtonGroup(container, items, type) {
+            container.innerHTML = '';
+            const allButton = createFilterButton('Todas', type, null);
+            allButton.classList.add('active');
+            container.appendChild(allButton);
+            items.forEach(item => container.appendChild(createFilterButton(item, type, item)));
+        }
+        function createFilterButton(text, type, value) {
+            const button = document.createElement('button');
+            button.className = 'filter-button';
+            button.textContent = text;
+            button.dataset.type = type;
+            button.dataset.value = value || 'all';
+            button.addEventListener('click', (e) => {
+                const clickedButton = e.currentTarget;
+                const parentContainer = clickedButton.parentElement;
+                parentContainer.querySelectorAll('.filter-button').forEach(btn => btn.classList.remove('active'));
+                clickedButton.classList.add('active');
+                const otherContainer = parentContainer.id === 'category-filters' ? keywordFiltersContainer : categoryFiltersContainer;
+                otherContainer.querySelectorAll('.filter-button').forEach(btn => btn.classList.remove('active'));
+                otherContainer.querySelector('.filter-button[data-value="all"]').classList.add('active');
+                activeFilter = { type: clickedButton.dataset.value === 'all' ? null : type, value: clickedButton.dataset.value === 'all' ? null : value };
+                applyFiltersAndSearch();
+            });
+            return button;
         }
     </script>
 </body>
