@@ -17,6 +17,7 @@ const COLS = {
   CATEGORIAS: 2,
   PALABRAS_CLAVE: 3,
 };
+
 /**
  * Punto de entrada único
  * Las peticiones llegan vía fetch desde el HTML
@@ -24,71 +25,50 @@ const COLS = {
 function doPost(e) {
   const body   = JSON.parse(e.postData.contents || '{}');
   const action = body.action || '';
+  // Se han eliminado las acciones de gestión (update, delete).
   const result = ({  
-    getFaqsAndFilters : getFaqsAndFilters,
+    getFaqsAndFilters : getFaqsAndFilters, // Necesario para la comprobación de duplicados
     add               : addFaq,
     replace           : replaceFaq,
-    updateFaq         : updateFaq,
-    deleteFaq         : deleteFaq,
     bulkAdd           : bulkAdd,
-   
     generate          : fakeGenerate, // placeholder
     refine            : fakeGenerate, // placeholder
   }[action] || unsupported)(body);
+  
   return ContentService
          .createTextOutput(JSON.stringify(result))
          .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
- * Devuelve todas las filas y los filtros únicos de categorías / palabras clave.
- * La hoja NO tiene fila de cabecera, así que construimos los nombres a mano.
+ * Devuelve todas las filas para la comprobación de duplicados.
+ * La hoja NO tiene fila de cabecera.
  */
 function getFaqsAndFilters() {
   try {
     const sh    = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
     const data  = sh.getDataRange().getValues();        // todas las filas
     const faqs  = [];
-    const cats  = new Set();
-    const keys  = new Set();
     data.forEach((row, i) => {
       // Saltar filas totalmente vacías
       if (row.join('').trim() === '') return;
 
-      const faq = {
+      faqs.push({
         rowNumber     : i + 1,               // la hoja empieza en 1
         Pregunta      : row[COLS.PREGUNTA]        || '',
-        
         Respuesta     : row[COLS.RESPUESTA]       || '',
         Categorias    : row[COLS.CATEGORIAS]      || '',
         PalabrasClave : row[COLS.PALABRAS_CLAVE]  || '',
-      };
-      faqs.push(faq);
-
-      // Construir los filtros únicos (insensible a mayúsculas)
-      faq.Categorias.split(/[,;]/).forEach(c => {
-        const v = c.trim().toLowerCase();
-        if (v) cats.add(v);
-  
-      });
-      faq.PalabrasClave.split(',').forEach(k => {
-        const v = k.trim().toLowerCase();
-        if (v) keys.add(v);
       });
     });
-    return { success:true, data:{
-      faqs,
-      filters:{
-        categories:[...cats].sort(),
-        keywords:[...keys].sort()
-      }
-    }};
+    // Ya no se necesitan los filtros, solo las FAQs para la lógica de duplicados
+    return { success:true, data:{ faqs }};
   } catch(err) {
     return { success:false, message:'Error en getFaqsAndFilters: ' + err };
   }
 }
 
-/* ----------------- Operaciones CRUD básicas -------------------- */
+/* ----------------- Operaciones de Escritura -------------------- */
 
 function addFaq({ faqData }) {
   try{
@@ -106,11 +86,7 @@ function addFaq({ faqData }) {
 }
 
 function replaceFaq({ rowNumber, faqData }) {
-  return updateFaq({ rowNumber, faqData });
-}
-
-function updateFaq({ rowNumber, faqData }) {
-  try{
+   try{
     const sh   = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
     sh.getRange(rowNumber, 1, 1, 4).setValues([[
       faqData.pregunta      || '',
@@ -121,17 +97,6 @@ function updateFaq({ rowNumber, faqData }) {
     return { success:true, message:'Actualizado correctamente.' };
   }catch(err){
     return { success:false, message:'Error al actualizar: '+err };
-  }
-}
-
-function deleteFaq({ rowNumber }) {
-  try{
-    const sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
-    sh.deleteRow(rowNumber);
-    return { success:true, message:'Fila eliminada.'
-    };
-  }catch(err){
-    return { success:false, message:'Error al borrar: '+err };
   }
 }
 
