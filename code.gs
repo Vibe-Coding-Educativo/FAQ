@@ -1,4 +1,3 @@
-
 /**
  * ID de tu hoja y nombre de la pestaña
  */
@@ -18,7 +17,6 @@ const COLS = {
   CATEGORIAS: 2,
   PALABRAS_CLAVE: 3,
 };
-
 /**
  * Punto de entrada único
  * Las peticiones llegan vía fetch desde el HTML
@@ -33,17 +31,17 @@ function doPost(e) {
     updateFaq         : updateFaq,
     deleteFaq         : deleteFaq,
     bulkAdd           : bulkAdd,
-    generate          : fakeGenerate, // placeholder
-    refine            : fakeGenerate, // placeholder
+   
+    generate          : fakeGenerate, // placeholder
+    refine            : fakeGenerate, // placeholder
   }[action] || unsupported)(body);
-
   return ContentService
          .createTextOutput(JSON.stringify(result))
          .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
- * Devuelve todas las filas y los filtros únicos de categorías / palabras clave.
+ * Devuelve todas las filas y los filtros únicos de categorías / palabras clave.
  * La hoja NO tiene fila de cabecera, así que construimos los nombres a mano.
  */
 function getFaqsAndFilters() {
@@ -53,7 +51,6 @@ function getFaqsAndFilters() {
     const faqs  = [];
     const cats  = new Set();
     const keys  = new Set();
-
     data.forEach((row, i) => {
       // Saltar filas totalmente vacías
       if (row.join('').trim() === '') return;
@@ -61,23 +58,24 @@ function getFaqsAndFilters() {
       const faq = {
         rowNumber     : i + 1,               // la hoja empieza en 1
         Pregunta      : row[COLS.PREGUNTA]        || '',
+        
         Respuesta     : row[COLS.RESPUESTA]       || '',
         Categorias    : row[COLS.CATEGORIAS]      || '',
         PalabrasClave : row[COLS.PALABRAS_CLAVE]  || '',
       };
       faqs.push(faq);
 
-      // Construir los filtros únicos
+      // Construir los filtros únicos (insensible a mayúsculas)
       faq.Categorias.split(/[,;]/).forEach(c => {
-        const v = c.trim();
+        const v = c.trim().toLowerCase();
         if (v) cats.add(v);
+  
       });
       faq.PalabrasClave.split(',').forEach(k => {
-        const v = k.trim();
+        const v = k.trim().toLowerCase();
         if (v) keys.add(v);
       });
     });
-
     return { success:true, data:{
       faqs,
       filters:{
@@ -130,7 +128,8 @@ function deleteFaq({ rowNumber }) {
   try{
     const sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
     sh.deleteRow(rowNumber);
-    return { success:true, message:'Fila eliminada.' };
+    return { success:true, message:'Fila eliminada.'
+    };
   }catch(err){
     return { success:false, message:'Error al borrar: '+err };
   }
