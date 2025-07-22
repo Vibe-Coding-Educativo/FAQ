@@ -413,31 +413,53 @@
             }
             renderFaqList(filteredList);
         }
-        async function loadAndRenderManageView() {
-            setLoading(true);
-            const result = await callApi({ action: 'getFaqsAndFilters' });
-            setLoading(false);
+        
+async function loadAndRenderManageView() {
+    setLoading(true);
+    const result = await callApi({ action: 'getFaqsAndFilters' });
+    setLoading(false);
 
-            if (result && (result.success || result.ok)) {
-                const normalize = f => ({
-                    rowNumber    : f.rowNumber ?? f.row ?? f.row_number ?? f.Row ?? null,
-                    Pregunta     : f.Pregunta  ?? f.pregunta  ?? f.Question ?? f.question ?? '',
-                    Respuesta    : f.Respuesta ?? f.respuesta ?? f.Answer   ?? f.answer   ?? '',
-                    Categorias   : f.Categorias?? f.categorias?? f.Categories ?? f.categories ?? '',
-                    PalabrasClave: f.PalabrasClave ?? f.palabrasClave ?? f.keywords ?? f.Keywords ?? ''
-                });
+    // 📋 inspección de la respuesta
+    console.log('→ result.data recibido:', JSON.stringify(result.data, null, 2));
 
-                const normalizedFaqs = result.data.faqs.map(normalize);
+    const isSuccess = result && (result.success === true || result.ok === true || result.status === 'success');
+    if (!isSuccess) {
+        showResult(result.message || 'Respuesta inválida del servidor', 'error');
+        return;
+    }
 
-                allFaqs = normalizedFaqs
-                    .filter(f => f.Pregunta && f.Pregunta.trim() !== '')
-                    .sort((a, b) => a.Pregunta.localeCompare(b.Pregunta));
+    // 1️⃣ localiza el array de FAQs con nombre flexible
+    const rawFaqs = result.data.faqs ?? result.data.FAQs ?? result.data.faqList ?? result.data.FAQLIST
+                 ?? result.data.records ?? result.data.Records ?? [];
 
-                allFilters = result.data.filters;
-                renderFilterButtons();
-                applyFiltersAndSearch();
-            }
+    // 2️⃣ util para recoger la primera clave existente
+    const pick = (obj, ...keys) => {
+        for (const k of keys) {
+            if (k in obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
         }
+        return '';
+    };
+
+    // 3️⃣ normaliza cada FAQ
+    const normalizedFaqs = rawFaqs.map(f => ({
+        rowNumber    : pick(f, 'rowNumber', 'row', 'Row', 'fila', 'index'),
+        Pregunta     : pick(f, 'Pregunta', 'pregunta', 'Question', 'question'),
+        Respuesta    : pick(f, 'Respuesta', 'respuesta', 'Answer', 'answer'),
+        Categorias   : pick(f, 'Categorias', 'categorias', 'Categories', 'categories'),
+        PalabrasClave: pick(f, 'PalabrasClave', 'palabrasClave', 'Keywords', 'keywords')
+    }));
+
+    // 4️⃣ guarda y ordena
+    allFaqs = normalizedFaqs
+        .filter(f => f.Pregunta && f.Pregunta.trim() !== '')
+        .sort((a, b) => a.Pregunta.localeCompare(b.Pregunta));
+
+    // 5️⃣ filtros
+    allFilters = result.data.filters ?? { categories: [], keywords: [] };
+    renderFilterButtons();
+    applyFiltersAndSearch();
+}
+
         async function handleModalSave() {
             const faqData = {
                 pregunta: modalPregunta.value,
@@ -468,41 +490,42 @@
         }
 
         // --- Lógica principal de la API ---
-        async function callApi(payload) {
-            setLoading(true);
-            if (payload.action === 'generate' || payload.action === 'bulkAdd') {
-                hideAllSections();
-            }
-            try {
-                const response = await fetch(SCRIPT_URL, { 
-                    method: 'POST', 
-                    mode: 'cors', 
-                    cache: 'no-cache', 
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-                    body: JSON.stringify(payload) 
-                });
-                const result = await response.json();
-                
-                console.log('API result [' + payload.action + ']:', result);
+        
+async function callApi(payload) {
+    setLoading(true);
+    if (payload.action === 'generate' || payload.action === 'bulkAdd') {
+        hideAllSections();
+    }
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'cors',
+            cache: 'no-cache',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
 
-                // Detecta éxito con más flexibilidad
-                const isSuccess = result.success === true ||
-                                  result.ok === true ||
-                                  result.status === 'success';
+        // 🔍 registro global
+        console.log(`API result [${payload.action}]:`, result);
 
-                if (!isSuccess) {
-                    showResult(result.message || 'Error en la respuesta del script.', 'error');
-                } else if (payload.action !== 'getFaqsAndFilters') {
-                    handleSuccess(payload.action, result);
-                }
-                return result;
-            } catch (error) {
-                showResult('Error de conexión con el script: ' + error.message, 'error');
-                return null;
-            } finally {
-                setLoading(false);
-            }
+        const isSuccess = result.success === true || result.ok === true || result.status === 'success';
+
+        if (!isSuccess) {
+            showResult(result.message || 'Error en la respuesta del script.', 'error');
+        } else if (payload.action !== 'getFaqsAndFilters') {
+            handleSuccess(payload.action, result);
         }
+
+        return result;
+    } catch (error) {
+        showResult('Error de conexión con el script: ' + error.message, 'error');
+        return null;
+    } finally {
+        setLoading(false);
+    }
+}
+
 
         function handleSuccess(action, result) {
             if (action === 'add' || action === 'replace' || action === 'bulkAdd') {
