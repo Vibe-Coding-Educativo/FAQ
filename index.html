@@ -15,7 +15,7 @@
         input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 1rem; }
         button { width: 100%; padding: 12px; border: none; border-radius: 4px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s, transform 0.1s; margin-top: 0.5rem; }
         button:active { transform: scale(0.98); }
-        #generateBtn { background-color: #3498db; color: white; }
+        #generateBtn, #bulkProcessBtn { background-color: #3498db; color: white; }
         #refineBtn { background-color: #f39c12; color: white; }
         #addBtn { background-color: #2ecc71; color: white; }
         button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
@@ -34,45 +34,62 @@
         #markdown-preview { border: 1px solid #ccc; border-radius: 4px; padding: 10px; height: 300px; overflow-y: auto; background-color: #fafafa; }
         #markdown-preview * { text-align: left !important; }
         .refine-section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px dashed #ccc;}
-        .checkbox-group { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; } /* Margen inferior para separar */
+        .checkbox-group { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
         .checkbox-group label { margin-bottom: 0; font-weight: normal; }
         #duplicate-alert { background-color: #fffbe6; border-color: #ffe58f; padding: 1.5rem; border-radius: 8px; border: 1px solid #ffe58f; }
         .duplicate-content { border: 1px solid #ddd; padding: 1rem; margin-top: 0.5rem; border-radius: 4px; background-color: #fff; }
         .duplicate-buttons { display: flex; gap: 1rem; margin-top: 1.5rem; }
         #categorize-only-section { display: none; }
+        .tabs { border-bottom: 2px solid #eee; margin-bottom: 2rem; }
+        .tab-button { background: none; border: none; padding: 1rem; font-size: 1rem; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+        .tab-button.active { border-bottom-color: #3498db; font-weight: bold; color: #3498db; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Editor de FAQ</h1>
-        <p>Introduce un tema y la IA te propondrá una entrada para que la revises.</p>
+        <p>Añade entradas de una en una o procesa varias de golpe.</p>
 
-        <div id="generate-section">
-            <!-- INICIO DE LA CORRECCIÓN DE ORDEN -->
-            <div class="checkbox-group">
-                <input type="checkbox" id="categorizeOnlyCheckbox">
-                <label for="categorizeOnlyCheckbox">Mantener mi texto y solo añadir categorías/palabras clave</label>
-            </div>
-            <!-- FIN DE LA CORRECCIÓN DE ORDEN -->
+        <div class="tabs">
+            <button class="tab-button active" onclick="showTab('single')">Entrada Individual</button>
+            <button class="tab-button" onclick="showTab('bulk')">Entrada Múltiple</button>
+        </div>
 
-            <div id="normal-generation-section">
-                <div class="form-group">
-                    <label for="userInput">Idea o tema a desarrollar:</label>
-                    <textarea id="userInput" placeholder="Escribe aquí una idea general para que la IA la desarrolle..."></textarea>
+        <div id="single-entry-tab" class="tab-content active">
+            <div id="generate-section">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="categorizeOnlyCheckbox">
+                    <label for="categorizeOnlyCheckbox">Mantener mi texto y solo añadir categorías/palabras clave</label>
                 </div>
+                <div id="normal-generation-section">
+                    <div class="form-group">
+                        <label for="userInput">Idea o tema a desarrollar:</label>
+                        <textarea id="userInput" placeholder="Escribe aquí una idea general para que la IA la desarrolle..."></textarea>
+                    </div>
+                </div>
+                <div id="categorize-only-section">
+                    <div class="form-group">
+                        <label for="categorize-question">Pregunta (texto final):</label>
+                        <textarea id="categorize-question"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="categorize-answer">Respuesta (texto final):</label>
+                        <textarea id="categorize-answer"></textarea>
+                    </div>
+                </div>
+                <button id="generateBtn">Generar Sugerencia</button>
             </div>
-            <div id="categorize-only-section">
-                <div class="form-group">
-                    <label for="categorize-question">Pregunta (texto final):</label>
-                    <textarea id="categorize-question"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="categorize-answer">Respuesta (texto final):</label>
-                    <textarea id="categorize-answer"></textarea>
-                </div>
+        </div>
+
+        <div id="bulk-entry-tab" class="tab-content">
+             <div class="form-group">
+                <label for="bulkInput">Pegar preguntas y respuestas en bloque</label>
+                <p style="text-align: left; font-size: 0.9em; margin-top: -0.5rem; margin-bottom: 0.5rem;">Usa el formato: "P: [pregunta]", "R: [respuesta]", y "---" para separar cada entrada.</p>
+                <textarea id="bulkInput" style="height: 300px;" placeholder="P: ¿Qué es HTML?&#10;R: Es un lenguaje de marcado.&#10;---&#10;P: ¿Qué es CSS?&#10;R: Es un lenguaje de estilos."></textarea>
             </div>
-            
-            <button id="generateBtn">Generar Sugerencia</button>
+            <button id="bulkProcessBtn">Procesar y Añadir en Bloque</button>
         </div>
 
         <div class="loader" id="loader">🧠 Pensando...</div>
@@ -144,6 +161,7 @@
         const addBtn = document.getElementById('addBtn');
         const replaceBtn = document.getElementById('replaceBtn');
         const discardBtn = document.getElementById('discardBtn');
+        const bulkProcessBtn = document.getElementById('bulkProcessBtn');
         const loader = document.getElementById('loader');
         const resultDiv = document.getElementById('result');
         const categorizeOnlyCheckbox = document.getElementById('categorizeOnlyCheckbox');
@@ -164,6 +182,7 @@
         const userInput = document.getElementById('userInput');
         const categorizeQuestion = document.getElementById('categorize-question');
         const categorizeAnswer = document.getElementById('categorize-answer');
+        const bulkInput = document.getElementById('bulkInput');
 
         // --- Variables de estado ---
         let duplicateData = {};
@@ -175,6 +194,7 @@
         addBtn.addEventListener('click', handleSave);
         replaceBtn.addEventListener('click', handleReplace);
         discardBtn.addEventListener('click', handleDiscard);
+        bulkProcessBtn.addEventListener('click', handleBulkProcess);
         
         categorizeOnlyCheckbox.addEventListener('change', (e) => {
             const isChecked = e.target.checked;
@@ -199,10 +219,34 @@
                 if (!userText) return showResult('Por favor, introduce un tema.', 'error');
                 payload = { action: 'generate', userInput: userText, categorizeOnly: false };
             }
-            
             currentRowToReplace = null;
             addBtn.textContent = 'Aprobar y Añadir a la Hoja de Cálculo';
             await callApi(payload);
+        }
+
+        async function handleBulkProcess() {
+            const text = bulkInput.value.trim();
+            if (!text) return showResult('El campo de texto para entrada múltiple está vacío.', 'error');
+
+            const entries = text.split(/---\s*/);
+            const qnaArray = [];
+            for (const entry of entries) {
+                if (!entry.trim()) continue;
+                
+                // --- INICIO DE LA CORRECCIÓN ---
+                // Expresión regular mejorada para ser más tolerante con los espacios y saltos de línea.
+                const match = entry.trim().match(/^[Pp]:\s*([\s\S]+?)\s*(\r\n|\n|\r)+\s*[Rr]:\s*([\s\S]+)$/);
+                // --- FIN DE LA CORRECCIÓN ---
+
+                if (match && match[1] && match[3]) {
+                    qnaArray.push({ pregunta: match[1].trim(), respuesta: match[3].trim() });
+                }
+            }
+
+            if (qnaArray.length === 0) {
+                return showResult('No se encontraron entradas válidas. Asegúrate de usar el formato "P: ... R: ... ---".', 'error');
+            }
+            await callApi({ action: 'bulkAdd', qnaArray });
         }
 
         async function handleRefine() {
@@ -263,11 +307,12 @@
         }
 
         function handleSuccess(action, result) {
-            if (action === 'add' || action === 'replace') {
+            if (action === 'add' || action === 'replace' || action === 'bulkAdd') {
                 showResult(result.message || 'Operación completada con éxito.', 'success');
                 userInput.value = '';
                 categorizeQuestion.value = '';
                 categorizeAnswer.value = '';
+                bulkInput.value = '';
                 currentRowToReplace = null;
                 addBtn.textContent = 'Aprobar y Añadir a la Hoja de Cálculo';
             } else if (result.data && result.data.status === 'duplicate') {
@@ -283,16 +328,10 @@
             reviewPregunta.value = data.Pregunta || '';
             reviewRespuesta.value = data.Respuesta || '';
             updateMarkdownPreview(reviewRespuesta.value);
-            
             clearContainer(categoriasContainer);
-            // --- INICIO DE LA CORRECCIÓN ---
-            // Se usa una expresión regular para dividir por coma O por punto y coma.
             (data.Categorias || '').split(/[,;]/).forEach(tag => createTag(tag, categoriasContainer));
-            
             clearContainer(palabrasClaveContainer);
             (data.PalabrasClave || '').split(/[,;]/).forEach(tag => createTag(tag, palabrasClaveContainer));
-            // --- FIN DE LA CORRECCIÓN ---
-
             reviewForm.style.display = 'block';
         }
 
@@ -316,6 +355,7 @@
             addBtn.disabled = isLoading;
             replaceBtn.disabled = isLoading;
             discardBtn.disabled = isLoading;
+            bulkProcessBtn.disabled = isLoading;
         }
 
         function showResult(message, type) {
@@ -357,6 +397,13 @@
 
         function clearContainer(container) {
             container.innerHTML = '';
+        }
+
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(tabName + '-entry-tab').style.display = 'block';
+            event.currentTarget.classList.add('active');
         }
     </script>
 </body>
