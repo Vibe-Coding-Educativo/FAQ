@@ -1,196 +1,111 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyuUrtNb72Faij5gp7qtgh-6_0Dh28YUiHW6_h-cc-ev92RkKiBKAJzlfN7eUndE0CsEw/exec';
+// --- CONFIGURACIÓN ---
+const SPREADSHEET_ID = '1JuiO4-mm_SJRUaERW3soThRn-LpZMy1R3x3RRuc0ArU';
+const SHEET_NAME = 'FAQ';
+// -------------------
 
-// --- Estado Global ---
-let allFaqs = [];
-let duplicateData = {};
-let currentRowToReplace = null;
+function doPost(e) {
+  try {
+    const requestData = JSON.parse(e.postData.contents);
+    let response;
 
-// --- Elementos del DOM (Generales) ---
-const loader = document.getElementById('loader');
-const resultDiv = document.getElementById('result');
-document.querySelectorAll('.nav-button').forEach(button => {
-    button.addEventListener('click', () => {
-        document.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
-        button.classList.add('active');
-        document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
-        document.getElementById(button.dataset.view).classList.add('active');
-        if (button.dataset.view === 'manage-view') {
-            loadAndRenderFaqs();
-        }
-    });
-});
-
-// --- Elementos del DOM (Vista Añadir) ---
-// (Aquí se pegarían todos los getElementById de la vista de añadir)
-const generateBtn = document.getElementById('generateBtn');
-
-// --- Elementos del DOM (Vista Gestionar) ---
-const searchInput = document.getElementById('searchInput');
-const faqListContainer = document.getElementById('faq-list-container');
-
-// --- Elementos del DOM (Modal Edición) ---
-const editModal = document.getElementById('edit-modal');
-const modalRowNumber = document.getElementById('modal-row-number');
-const modalPregunta = document.getElementById('modal-pregunta');
-const modalRespuesta = document.getElementById('modal-respuesta');
-const modalMarkdownPreview = document.getElementById('modal-markdown-preview');
-const modalCategoriasContainer = document.getElementById('modal-categorias-container');
-const modalAddCategoria = document.getElementById('modal-add-categoria');
-const modalPalabrasClaveContainer = document.getElementById('modal-palabrasclave-container');
-const modalAddPalabraClave = document.getElementById('modal-add-palabraclave');
-const modalSaveBtn = document.getElementById('modal-save');
-const modalCancelBtn = document.getElementById('modal-cancel');
-
-
-// --- Inicialización ---
-function initializeAddView() {
-    // Clona el contenido de la vista de añadir desde un template
-    const addView = document.getElementById('add-view');
-    addView.innerHTML = `
-        <div class="tabs">
-            <button class="tab-button active" onclick="showTab('single')">Entrada Individual</button>
-            <button class="tab-button" onclick="showTab('bulk')">Entrada Múltiple</button>
-        </div>
-        <div id="single-entry-tab" class="tab-content active"> ... </div>
-        <div id="bulk-entry-tab" class="tab-content"> ... </div>
-        <div id="duplicate-alert"> ... </div>
-        <div id="review-form"> ... </div>
-    `;
-    // Aquí se añadirían los event listeners para los botones de esta vista
-}
-// NOTA: Para mantener la brevedad, el script completo de la vista "Añadir" no se ha replicado aquí.
-// El script completo de la versión anterior se debe integrar en este nuevo marco.
-// A continuación se muestra la nueva lógica para la vista de GESTIÓN.
-
-// --- Lógica de la Vista de Gestión ---
-
-searchInput.addEventListener('input', () => {
-    const searchTerm = searchInput.value.toLowerCase();
-    if (!searchTerm) {
-        renderFaqList(allFaqs);
-        return;
-    }
-    const filteredFaqs = allFaqs.filter(faq => {
-        return faq.Pregunta.toLowerCase().includes(searchTerm) ||
-               faq.Respuesta.toLowerCase().includes(searchTerm) ||
-               faq.Categorias.toLowerCase().includes(searchTerm) ||
-               faq.PalabrasClave.toLowerCase().includes(searchTerm);
-    });
-    renderFaqList(filteredFaqs);
-});
-
-async function loadAndRenderFaqs() {
-    setLoading(true);
-    const result = await callApi({ action: 'getFaqs' });
-    setLoading(false);
-    if (result && result.success) {
-        allFaqs = result.data;
-        renderFaqList(allFaqs);
-    }
-}
-
-function renderFaqList(faqs) {
-    faqListContainer.innerHTML = '';
-    if (faqs.length === 0) {
-        faqListContainer.innerHTML = '<p>No se encontraron FAQs.</p>';
-        return;
-    }
-    faqs.forEach(faq => {
-        const item = document.createElement('div');
-        item.className = 'faq-item';
-        item.innerHTML = `
-            <p>${faq.Pregunta}</p>
-            <div class="faq-item-buttons">
-                <button id="edit-btn">Editar</button>
-                <button id="delete-btn">Borrar</button>
-            </div>
-        `;
-        item.querySelector('#edit-btn').addEventListener('click', () => openEditModal(faq));
-        item.querySelector('#delete-btn').addEventListener('click', () => handleDelete(faq.rowNumber));
-        faqListContainer.appendChild(item);
-    });
-}
-
-// --- Lógica del Modal de Edición ---
-
-function openEditModal(faq) {
-    modalRowNumber.value = faq.rowNumber;
-    modalPregunta.value = faq.Pregunta;
-    modalRespuesta.value = faq.Respuesta;
-    updateMarkdownPreview(modalRespuesta.value, modalMarkdownPreview);
+    // --- ACCIONES DE GESTIÓN (CRUD) ---
+    if (requestData.action === 'getFaqsAndFilters') {
+      response = getFaqsAndFilters();
+    } else if (requestData.action === 'updateFaq') {
+      response = updateFaqInSheet(requestData.rowNumber, requestData.faqData);
+    } else if (requestData.action === 'deleteFaq') {
+      response = deleteFaqFromSheet(requestData.rowNumber);
     
-    clearContainer(modalCategoriasContainer);
-    (faq.Categorias || '').split(/[,;]/).forEach(tag => createTag(tag, modalCategoriasContainer));
+    // --- ACCIONES DE IA Y ADICIÓN ---
+    } else if (requestData.action === 'generate') {
+      response = generateFaqSuggestion(requestData);
+    } else if (requestData.action === 'refine') {
+      response = refineFaqSuggestion(requestData.previousSuggestion, requestData.refinementInstruction);
+    } else if (requestData.action === 'add') {
+      response = addFaqToSheet(requestData.faqData);
+    } else if (requestData.action === 'bulkAdd') {
+      response = bulkAddFaqs(requestData.qnaArray);
+    } else if (requestData.action === 'replace') {
+      response = replaceFaqInSheet(requestData.rowNumber, requestData.faqData);
+    } else {
+      throw new Error("Acción no válida.");
+    }
 
-    clearContainer(modalPalabrasClaveContainer);
-    (faq.PalabrasClave || '').split(/[,;]/).forEach(tag => createTag(tag, modalPalabrasClaveContainer));
-
-    editModal.style.display = 'flex';
+    return ContentService.createTextOutput(JSON.stringify(response)).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    Logger.log(error.toString());
+    const errorResponse = { success: false, message: 'Error en el servidor: ' + error.toString() };
+    return ContentService.createTextOutput(JSON.stringify(errorResponse)).setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
-modalCancelBtn.addEventListener('click', () => {
-    editModal.style.display = 'none';
-});
+// --- FUNCIÓN DE GESTIÓN MEJORADA ---
+function getFaqsAndFilters() {
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
+  const values = sheet.getDataRange().getValues();
+  const faqs = [];
+  const categories = new Set();
+  const keywords = new Set();
 
-modalSaveBtn.addEventListener('click', async () => {
-    const faqData = {
-        pregunta: modalPregunta.value,
-        respuesta: modalRespuesta.value,
-        categorias: getTagsAsString(modalCategoriasContainer, ';'),
-        palabrasClave: getTagsAsString(modalPalabrasClaveContainer, ',')
-    };
-    const rowNumber = modalRowNumber.value;
-    
-    setLoading(true);
-    const result = await callApi({ action: 'updateFaq', rowNumber, faqData });
-    setLoading(false);
-    
-    if (result && result.success) {
-        editModal.style.display = 'none';
-        showResult(result.message, 'success');
-        loadAndRenderFaqs(); // Recargar la lista
-    }
-});
+  if (values.length > 1) {
+    const headers = values[0].map(h => h.trim());
+    const catIndex = headers.indexOf('Categorias');
+    const keyIndex = headers.indexOf('PalabrasClave');
 
-async function handleDelete(rowNumber) {
-    if (confirm(`¿Seguro que quieres borrar la FAQ de la fila ${rowNumber}? Esta acción no se puede deshacer.`)) {
-        setLoading(true);
-        const result = await callApi({ action: 'deleteFaq', rowNumber });
-        setLoading(false);
-        if (result && result.success) {
-            showResult(result.message, 'success');
-            loadAndRenderFaqs(); // Recargar la lista
-        }
+    for (let i = 1; i < values.length; i++) {
+      let faq = {};
+      faq['rowNumber'] = i + 1;
+      headers.forEach((header, j) => {
+        faq[header] = values[i][j];
+      });
+      faqs.push(faq);
+
+      // Extraer categorías y palabras clave para los filtros
+      if (catIndex > -1 && values[i][catIndex]) {
+        values[i][catIndex].toString().split(';').forEach(cat => { if(cat.trim()) categories.add(cat.trim()) });
+      }
+      if (keyIndex > -1 && values[i][keyIndex]) {
+        values[i][keyIndex].toString().split(',').forEach(key => { if(key.trim()) keywords.add(key.trim()) });
+      }
     }
+  }
+  
+  return { 
+    success: true, 
+    data: {
+      faqs: faqs,
+      filters: {
+        categories: Array.from(categories).sort(),
+        keywords: Array.from(keywords).sort()
+      }
+    } 
+  };
 }
 
-// --- Lógica de la API (general) ---
-async function callApi(payload) {
-    try {
-        const response = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            mode: 'cors',
-            cache: 'no-cache',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(payload)
-        });
-        const result = await response.json();
-        if (!result.success) {
-            showResult(result.message, 'error');
-        }
-        return result;
-    } catch (error) {
-        showResult('Error de conexión con el script: ' + error.message, 'error');
-        return null;
-    }
+function updateFaqInSheet(rowNumber, faqData) {
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
+  const range = sheet.getRange(rowNumber, 1, 1, 4);
+  range.setValues([[ faqData.pregunta, faqData.respuesta, faqData.categorias, faqData.palabrasClave ]]);
+  return { success: true, message: `FAQ de la fila ${rowNumber} actualizada.` };
 }
 
-// --- Funciones de ayuda ---
-// (Aquí se pegarían las funciones de ayuda como setLoading, showResult, createTag, etc.)
-function setLoading(isLoading) { loader.style.display = isLoading ? 'block' : 'none'; }
-function showResult(message, type) { resultDiv.textContent = message; resultDiv.className = `result-message ${type}`; resultDiv.style.display = 'block'; setTimeout(() => resultDiv.style.display = 'none', 4000); }
-function createTag(text, container) { const tagText = text.trim(); if (!tagText) return; const tagEl = document.createElement('div'); tagEl.className = 'tag'; tagEl.innerHTML = `<span>${tagText}</span><span class="remove-tag" title="Eliminar">x</span>`; tagEl.querySelector('.remove-tag').addEventListener('click', () => tagEl.remove()); container.appendChild(tagEl); }
-function getTagsAsString(container, separator) { return Array.from(container.querySelectorAll('.tag span:first-child')).map(t => t.textContent).join(separator); }
-function clearContainer(container) { container.innerHTML = ''; }
-function updateMarkdownPreview(markdownText, previewElement) { previewElement.innerHTML = marked.parse(markdownText); }
-// ... y el resto del script de la vista de añadir.
+function deleteFaqFromSheet(rowNumber) {
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
+  sheet.deleteRow(rowNumber);
+  return { success: true, message: `FAQ de la fila ${rowNumber} eliminada.` };
+}
+
+
+// --- FUNCIONES DE IA Y ADICIÓN (sin cambios) ---
+// (Se incluyen para que el código esté completo)
+function getSheetValues() { const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME); return sheet.getDataRange().getValues(); }
+function getExistingQuestionsList(values) { if (!values || values.length < 2) return []; return values.slice(1).map(row => row[0] ? row[0].toString().trim() : ""); }
+function generateFaqSuggestion(requestData) { const existingValues = getSheetValues(); const existingCategories = getUniqueCategoriesFromValues(existingValues); const existingQuestions = getExistingQuestionsList(existingValues); const textToCheck = requestData.categorizeOnly ? requestData.pregunta : requestData.userInput; const operationMode = requestData.categorizeOnly ? "SOLO_CATEGORIZAR" : "GENERACION_COMPLETA"; const prompt = `Eres un asistente experto en "vibe coding educativo". Tu tarea principal es evitar preguntas duplicadas en una FAQ analizando su significado (semántica). TAREA: Compara el "TEXTO A COMPROBAR" con la "LISTA DE PREGUNTAS EXISTENTES". TEXTO A COMPROBAR: "${textToCheck}" LISTA DE PREGUNTAS EXISTENTES:\n${existingQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')} EJEMPLO DE DUPLICADO SEMÁNTICO: La pregunta "¿Cómo comparto un vídeo de Telegram?" ES un duplicado de "¿Cómo puedo compartir un vídeo que alguien ha publicado en el grupo de Telegram?". INSTRUCCIONES DE SALIDA (JSON): 1. Decide si el SIGNIFICADO del "TEXTO A COMPROBAR" ya está cubierto por alguna pregunta de la lista. 2. SI ES SEMÁNTICAMENTE SIMILAR: Responde con { "status": "duplicate", "existing": { "Pregunta": "...", "Respuesta": "..." }, "suggestion": { ... } }. En 'existing' pon la pregunta y respuesta antiguas exactas. En 'suggestion' crea una versión mejorada. 3. SI ES NUEVO: Procede según el "MODO DE OPERACIÓN" y responde con { "status": "new", "suggestion": { ... } }. 4. REGLAS: Responde EXCLUSIVAMENTE con el objeto JSON. Prioriza las categorías existentes: [${existingCategories.join(', ')}]. CONTEXTO COMPLETO (para buscar la respuesta si encuentras un duplicado):\n${getValuesAsCsv(existingValues)}`; const apiResult = callGenerativeApi(prompt); if (apiResult.success && apiResult.data.status === 'duplicate') { const existingQuestionText = apiResult.data.existing.Pregunta; const rowNumber = findRowNumberOfQuestion(existingValues, existingQuestionText); if (rowNumber > -1) { apiResult.data.existing.rowNumber = rowNumber; } } return apiResult; }
+function bulkAddFaqs(qnaArray) { if (!qnaArray || qnaArray.length === 0) { return { success: false, message: "No se proporcionaron preguntas para añadir." }; } const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME); const newRows = []; const existingValues = sheet.getDataRange().getValues(); const existingCategories = getUniqueCategoriesFromValues(existingValues); const existingQuestionsSet = new Set(existingValues.slice(1).map(row => row[0] ? row[0].toString().trim().toLowerCase() : "")); let skippedCount = 0; for (const qna of qnaArray) { const normalizedQuestion = qna.pregunta.trim().toLowerCase(); if (existingQuestionsSet.has(normalizedQuestion)) { skippedCount++; continue; } const prompt = `Eres un asistente experto que ayuda a un profesor a organizar una FAQ sobre "vibe coding educativo". TAREA: Te doy una Pregunta y Respuesta. Genera las 'Categorias' y 'PalabrasClave' apropiadas. PREGUNTA: "${qna.pregunta}" RESPUESTA: "${qna.respuesta}" CATEGORÍAS EXISTENTES: [${existingCategories.join(', ')}] INSTRUCCIONES: Prioriza categorías existentes. Devuelve solo un JSON con "Categorias" y "PalabrasClave". FORMATO JSON: { "Categorias": "...", "PalabrasClave": "..." }`; const categorizationResult = callGenerativeApi(prompt); if (categorizationResult.success) { newRows.push([ qna.pregunta, qna.respuesta, categorizationResult.data.Categorias || '', categorizationResult.data.PalabrasClave || '' ]); existingQuestionsSet.add(normalizedQuestion); } } if (newRows.length > 0) { sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, 4).setValues(newRows); } let message = `Proceso completado. Se han añadido ${newRows.length} nuevas FAQs.`; if (skippedCount > 0) { message += ` Se han omitido ${skippedCount} por ser duplicados.`; } return { success: true, message: message }; }
+function replaceFaqInSheet(rowNumber, faqData) { const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME); const range = sheet.getRange(rowNumber, 1, 1, 4); range.setValues([[ faqData.pregunta, faqData.respuesta, faqData.categorias, faqData.palabrasClave ]]); return { success: true, message: `FAQ en la fila ${rowNumber} actualizada correctamente.` }; }
+function refineFaqSuggestion(previousSuggestion, refinementInstruction) { const prompt = `Eres un asistente experto que ayuda a un profesor a crear una FAQ sobre "vibe coding educativo". PUBLICO OBJETIVO: Docentes con conocimientos limitados de programación. Usa un lenguaje claro y sencillo. TAREA: Refina la siguiente entrada de la FAQ basándote en la instrucción del profesor. ENTRADA ANTERIOR (JSON): ${JSON.stringify(previousSuggestion, null, 2)} INSTRUCCIÓN: "${refinementInstruction}" INSTRUCCIONES ADICIONALES: Aplica la mejora, manteniendo un lenguaje sencillo. Devuelve EXCLUSIVAMENTE en formato JSON. FORMATO JSON: { "Pregunta": "...", "Respuesta": "...", "Categorias": "...", "PalabrasClave": "..." }`; return callGenerativeApi(prompt); }
+function callGenerativeApi(prompt) { const API_KEY = PropertiesService.getScriptProperties().getProperty('API_KEY'); if (!API_KEY) return { success: false, message: 'Error: API_KEY no configurada.' }; const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`; const payload = { contents: [{ parts: [{ text: prompt }] }] }; const options = { method: 'post', contentType: 'application/json', payload: JSON.stringify(payload) }; const response = UrlFetchApp.fetch(apiUrl, options); const jsonResponse = JSON.parse(response.getContentText()); let generatedText = jsonResponse.candidates[0].content.parts[0].text.trim(); let cleanedText = generatedText.replace(/^```(?:json)?\s*/, '').replace(/```\s*$/, ''); const startIndex = cleanedText.indexOf('{'); const endIndex = cleanedText.lastIndexOf('}'); if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) { throw new Error("La respuesta de la IA no contenía un formato JSON válido. Respuesta: " + generatedText); } const finalJsonText = cleanedText.substring(startIndex, endIndex + 1); const faqData = JSON.parse(finalJsonText); return { success: true, data: faqData }; }
+function addFaqToSheet(faqData) { const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME); sheet.appendRow([faqData.pregunta, faqData.respuesta, faqData.categorias, faqData.palabrasClave]); return { success: true, message: 'FAQ añadida correctamente a la hoja de cálculo.' }; }
+function getUniqueCategoriesFromValues(values) { if (!values || values.length < 2) return []; const headers = values[0].map(h => h.trim()); const categoryIndex = headers.indexOf('Categorias'); if (categoryIndex === -1) return []; const categories = new Set(); values.slice(1).forEach(row => { if (row[categoryIndex]) { row[categoryIndex].toString().split(';').forEach(cat => { if (cat.trim()) categories.add(cat.trim()); }); } }); return Array.from(categories); }
+function findRowNumberOfQuestion(values, questionToFind) { if (!values || !questionToFind) return -1; const rowIndex = values.findIndex(row => row[0] && row[0].toString().trim() === questionToFind.trim()); return rowIndex !== -1 ? rowIndex + 1 : -1; }
+function getValuesAsCsv(values) { return values.map(row => row.map(cell => { let cellStr = String(cell).replace(/"/g, '""'); if (cellStr.includes(',') || cellStr.includes('\n')) { cellStr = `"${cellStr}"`; } return cellStr; }).join(',')).join('\n'); }
