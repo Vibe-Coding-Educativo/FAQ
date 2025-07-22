@@ -418,7 +418,7 @@
             const result = await callApi({ action: 'getFaqsAndFilters' });
             setLoading(false);
 
-            if (result && result.success) {
+            if (result && (result.success || result.ok)) {
                 const normalize = f => ({
                     rowNumber    : f.rowNumber ?? f.row ?? f.row_number ?? f.Row ?? null,
                     Pregunta     : f.Pregunta  ?? f.pregunta  ?? f.Question ?? f.question ?? '',
@@ -449,7 +449,7 @@
             setLoading(true);
             const result = await callApi({ action: 'updateFaq', rowNumber, faqData });
             setLoading(false);
-            if (result && result.success) {
+            if (result && (result.success || result.ok)) {
                 editModal.style.display = 'none';
                 showResult(result.message, 'success');
                 loadAndRenderManageView();
@@ -460,7 +460,7 @@
                 setLoading(true);
                 const result = await callApi({ action: 'deleteFaq', rowNumber });
                 setLoading(false);
-                if (result && result.success) {
+                if (result && (result.success || result.ok)) {
                     showResult(result.message, 'success');
                     loadAndRenderManageView();
                 }
@@ -483,7 +483,14 @@
                 });
                 const result = await response.json();
                 
-                if (!result.success) {
+                console.log('API result [' + payload.action + ']:', result);
+
+                // Detecta éxito con más flexibilidad
+                const isSuccess = result.success === true ||
+                                  result.ok === true ||
+                                  result.status === 'success';
+
+                if (!isSuccess) {
                     showResult(result.message || 'Error en la respuesta del script.', 'error');
                 } else if (payload.action !== 'getFaqsAndFilters') {
                     handleSuccess(payload.action, result);
