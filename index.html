@@ -16,7 +16,7 @@
         button { width: 100%; padding: 12px; border: none; border-radius: 4px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s, transform 0.1s; margin-top: 0.5rem; }
         button:active { transform: scale(0.98); }
         #generateBtn { background-color: #3498db; color: white; }
-        #refineBtn { background-color: #f39c12; color: white; } /* Botón de refinar */
+        #refineBtn { background-color: #f39c12; color: white; }
         #addBtn { background-color: #2ecc71; color: white; }
         button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
         #review-form { display: none; margin-top: 2rem; border-top: 2px solid #eee; padding-top: 2rem; }
@@ -39,6 +39,8 @@
         #markdown-preview pre { background-color: #eee; padding: 1rem; border-radius: 4px; overflow-x: auto; }
         #markdown-preview blockquote { border-left: 3px solid #ccc; padding-left: 1rem; margin-left: 0; color: #666; }
         .refine-section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px dashed #ccc;}
+        .checkbox-group { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; }
+        .checkbox-group label { margin-bottom: 0; font-weight: normal; }
     </style>
 </head>
 <body>
@@ -49,7 +51,12 @@
         <div id="generate-section">
             <div class="form-group">
                 <label for="userInput">Idea o tema a desarrollar:</label>
-                <textarea id="userInput" placeholder="Ej: 'cómo usar fetch para leer un CSV' o 'diferencias entre GET y POST'"></textarea>
+                <textarea id="userInput" placeholder="Escribe aquí una idea general para que la IA la desarrolle, O bien, escribe una pregunta y respuesta completas y marca la casilla de abajo."></textarea>
+            </div>
+            <!-- NUEVA CASILLA DE VERIFICACIÓN -->
+            <div class="checkbox-group">
+                <input type="checkbox" id="categorizeOnlyCheckbox">
+                <label for="categorizeOnlyCheckbox">Mantener mi texto y solo añadir categorías/palabras clave</label>
             </div>
             <button id="generateBtn">Generar Sugerencia</button>
         </div>
@@ -84,7 +91,6 @@
                 <div class="tag-container" id="palabrasClaveContainer"></div>
             </div>
 
-            <!-- NUEVA SECCIÓN DE REFINADO -->
             <div class="refine-section">
                 <div class="form-group">
                     <label for="refinementInput">¿Quieres mejorar algo? Da una instrucción:</label>
@@ -103,17 +109,18 @@
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyuUrtNb72Faij5gp7qtgh-6_0Dh28YUiHW6_h-cc-ev92RkKiBKAJzlfN7eUndE0CsEw/exec';
 
         const generateBtn = document.getElementById('generateBtn');
-        const refineBtn = document.getElementById('refineBtn'); // Nuevo botón
+        const refineBtn = document.getElementById('refineBtn');
         const addBtn = document.getElementById('addBtn');
         const userInput = document.getElementById('userInput');
         const loader = document.getElementById('loader');
         const reviewForm = document.getElementById('review-form');
         const resultDiv = document.getElementById('result');
+        const categorizeOnlyCheckbox = document.getElementById('categorizeOnlyCheckbox'); // Nueva casilla
 
         const reviewPregunta = document.getElementById('reviewPregunta');
         const reviewRespuesta = document.getElementById('reviewRespuesta');
         const markdownPreview = document.getElementById('markdown-preview');
-        const refinementInput = document.getElementById('refinementInput'); // Nuevo campo
+        const refinementInput = document.getElementById('refinementInput');
         
         const categoriasContainer = document.getElementById('categoriasContainer');
         const addCategoriaInput = document.getElementById('addCategoriaInput');
@@ -121,7 +128,7 @@
         const addPalabraClaveInput = document.getElementById('addPalabraClaveInput');
 
         generateBtn.addEventListener('click', handleGenerate);
-        refineBtn.addEventListener('click', handleRefine); // Nuevo evento
+        refineBtn.addEventListener('click', handleRefine);
         addBtn.addEventListener('click', handleAdd);
 
         setupTagInput(addCategoriaInput, categoriasContainer);
@@ -130,8 +137,18 @@
         reviewRespuesta.addEventListener('input', () => updateMarkdownPreview(reviewRespuesta.value));
 
         async function handleGenerate() {
-            if (!userInput.value.trim()) return showResult('Por favor, introduce un tema.', 'error');
-            await callApi({ action: 'generate', userInput: userInput.value });
+            const userText = userInput.value.trim();
+            if (!userText) return showResult('Por favor, introduce un tema.', 'error');
+            
+            let payload;
+            if (categorizeOnlyCheckbox.checked) {
+                // Si la casilla está marcada, asumimos que el usuario ha puesto Pregunta y Respuesta
+                // Podríamos mejorarlo para que el usuario las ponga en campos separados, pero por ahora funciona así.
+                payload = { action: 'generate', pregunta: userText, respuesta: '', categorizeOnly: true };
+            } else {
+                payload = { action: 'generate', userInput: userText, categorizeOnly: false };
+            }
+            await callApi(payload);
         }
 
         async function handleRefine() {
@@ -146,7 +163,7 @@
             };
 
             await callApi({ action: 'refine', previousSuggestion, refinementInstruction });
-            refinementInput.value = ''; // Limpiar el campo después de usarlo
+            refinementInput.value = '';
         }
 
         async function handleAdd() {
