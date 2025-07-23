@@ -19,12 +19,28 @@ const COLS = {
 };
 
 /**
- * Punto de entrada único
- * Las peticiones llegan vía fetch desde el HTML
+ * Gestor de peticiones OPTIONS para el pre-vuelo de CORS.
+ * Permite que el navegador verifique los permisos antes de enviar la petición POST.
+ * @param {object} e - El objeto de evento de la petición.
+ * @returns {ContentService.TextOutput} Una respuesta con las cabeceras CORS necesarias.
+ */
+function doOptions(e) {
+  return ContentService.createTextOutput()
+    .addHeader('Access-Control-Allow-Origin', '*')
+    .addHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+    .addHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+/**
+ * Punto de entrada único para peticiones POST.
+ * Las peticiones llegan vía fetch desde el HTML del editor.
+ * @param {object} e - El objeto de evento de la petición POST.
+ * @returns {ContentService.TextOutput} Una respuesta en formato JSON con cabeceras CORS.
  */
 function doPost(e) {
   const body   = JSON.parse(e.postData.contents || '{}');
   const action = body.action || '';
+  
   // Se han eliminado las acciones de gestión (update, delete).
   const result = ({  
     getFaqsAndFilters : getFaqsAndFilters, // Necesario para la comprobación de duplicados
@@ -34,10 +50,13 @@ function doPost(e) {
     generate          : fakeGenerate, // placeholder
     refine            : fakeGenerate, // placeholder
   }[action] || unsupported)(body);
-  
+
+  // --- CORRECCIÓN AQUÍ ---
+  // Se añade la cabecera 'Access-Control-Allow-Origin' para permitir el acceso desde cualquier origen.
   return ContentService
          .createTextOutput(JSON.stringify(result))
-         .setMimeType(ContentService.MimeType.JSON);
+         .setMimeType(ContentService.MimeType.JSON)
+         .addHeader('Access-Control-Allow-Origin', '*');
 }
 
 /**
