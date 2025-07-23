@@ -151,8 +151,6 @@
         const showLoader = (show, text = 'Procesando...') => {
             isLoading = show;
             loaderText.textContent = text;
-            // **CORRECCIÓN CLAVE**: Se usa únicamente classList para evitar conflictos de especificidad CSS.
-            // Tailwind maneja la propiedad 'display' a través de la clase 'hidden'.
             if (show) {
                 loader.classList.remove('hidden');
             } else {
@@ -219,7 +217,14 @@
                 }
                 
                 const result = await response.json();
-                console.log(`JSON parseado de la respuesta:`, result);
+                
+                // **CAMBIO DE SEGURIDAD**: No mostrar la respuesta de getApiKey en la consola.
+                if (action === 'getApiKey' && result.status === 'success') {
+                    console.log('Respuesta para getApiKey recibida con éxito.');
+                } else {
+                    console.log(`JSON parseado de la respuesta para '${action}':`, result);
+                }
+
                 return result;
 
             } catch (error) {
