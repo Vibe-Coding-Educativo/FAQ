@@ -31,7 +31,7 @@
 <body class="bg-gray-50 text-gray-800">
 
     <!-- Loader Overlay -->
-    <div id="loader" class="fixed inset-0 z-50 flex-col items-center justify-center hidden">
+    <div id="loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center hidden">
         <div class="w-16 h-16 border-4 border-t-4 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></div>
         <p id="loader-text" class="mt-4 text-lg font-medium text-indigo-600">Procesando...</p>
     </div>
@@ -151,8 +151,9 @@
         const showLoader = (show, text = 'Procesando...') => {
             isLoading = show;
             loaderText.textContent = text;
-            loader.style.display = show ? 'flex' : 'hidden';
-            if(show) {
+            // **CORRECCIÓN CLAVE**: Se usa únicamente classList para evitar conflictos de especificidad CSS.
+            // Tailwind maneja la propiedad 'display' a través de la clase 'hidden'.
+            if (show) {
                 loader.classList.remove('hidden');
             } else {
                 loader.classList.add('hidden');
@@ -275,7 +276,6 @@
 
         /**
          * Inicializa la aplicación: obtiene la API key y los datos de la FAQ.
-         * **CAMBIO CLAVE**: Se reescribe con .then() para mayor compatibilidad.
          */
         const initialize = () => {
             showLoader(true, 'Inicializando aplicación...');
@@ -287,7 +287,6 @@
                         apiKey = keyResponse.apiKey;
                         logMessage(bulkLog, 'API Key obtenida con éxito.', 'success');
                         logMessage(bulkLog, 'Cargando datos existentes de la FAQ...');
-                        // Encadenar la siguiente llamada a la API
                         return fetchFromGoogleScript('getData');
                     } else {
                         const errorMsg = (keyResponse && keyResponse.message) ? keyResponse.message : "Respuesta nula o inválida del script.";
@@ -308,7 +307,6 @@
                     logMessage(bulkLog, `Error crítico al iniciar: ${error.message}`, 'error');
                 })
                 .finally(() => {
-                    // Este bloque se ejecuta siempre, haya error o no.
                     console.log("Bloque finally alcanzado. Ocultando loader.");
                     showLoader(false);
                 });
@@ -336,7 +334,7 @@
         const isSemanticDuplicate = async (newQuestion) => {
             if (faqData.length === 0) return false;
 
-            const existingQuestions = faqData.map(item => item.pregunta).filter(Boolean); // Filtra nulos o undefined
+            const existingQuestions = faqData.map(item => item.pregunta).filter(Boolean);
             if(existingQuestions.length === 0) return false;
 
             const prompt = `Eres un sistema experto en detectar duplicados semánticos en una base de conocimientos sobre programación educativa. Compara la "NUEVA PREGUNTA" con cada una de las "PREGUNTAS EXISTENTES". Si la nueva pregunta es esencialmente la misma que una existente (aunque esté formulada de otra manera), responde únicamente con la palabra "true". Si es una pregunta genuinamente nueva, responde únicamente con la palabra "false".
