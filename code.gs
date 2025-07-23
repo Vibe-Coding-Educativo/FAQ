@@ -7,20 +7,6 @@
 const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1JuiO4-mm_SJRUaERW3soThRn-LpZMy1R3x3RRuc0ArU/edit';
 const SHEET_NAME = 'FAQ';
 
-/**
- * Sirve la aplicación web al usuario cuando visita la URL.
- * Esta función se ejecuta con una petición GET.
- * @param {Object} e - Objeto del evento.
- * @returns {HtmlOutput} - La página web de la aplicación.
- */
-function doGet(e) {
-  // Esta función es necesaria para el despliegue como aplicación web,
-  // pero no la usaremos directamente si alojamos el HTML en GitHub.
-  return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle('Gestor de FAQ para Docentes')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
-
 // La función doPost es la que realmente maneja las peticiones desde GitHub.
 function doPost(e) {
   try {
@@ -41,7 +27,6 @@ function doPost(e) {
         response = { status: 'error', message: 'Acción no reconocida' };
     }
     
-    // Devolver la respuesta en formato JSON. Google se encarga de las cabeceras CORS.
     return ContentService
       .createTextOutput(JSON.stringify(response))
       .setMimeType(ContentService.MimeType.JSON);
@@ -90,15 +75,24 @@ function getData() {
       return { status: 'success', data: [] };
     }
 
+    // **CORRECCIÓN CLAVE**: Se valida que las cabeceras sean las esperadas.
     const headers = values.shift().map(h => h.toString().toLowerCase().trim().replace(/\s/g, '_'));
+    const expectedHeaders = ['pregunta', 'respuesta', 'categorías', 'palabras_clave'];
     
+    // Comprobamos si la primera cabecera es la que esperamos. Si no, es que la hoja está mal formateada.
+    if(headers[0] !== expectedHeaders[0]){
+      throw new Error(`Las cabeceras de la hoja de cálculo son incorrectas. Se esperaba "Pregunta" pero se encontró "${headers[0]}". Por favor, revisa la primera fila de tu Google Sheet.`);
+    }
+
     const data = values.map(row => {
       const obj = {};
-      headers.forEach((header, i) => {
-        if (header === 'categorias' || header === 'palabras_clave') {
-          obj[header] = row[i] ? row[i].toString().split(',').map(item => item.trim()) : [];
+      expectedHeaders.forEach((header, i) => {
+        // Asignamos los valores basándonos en las cabeceras esperadas para evitar errores.
+        const cellValue = row[i] || '';
+        if (header === 'categorías' || header === 'palabras_clave') {
+          obj[header] = cellValue ? cellValue.toString().split(',').map(item => item.trim()) : [];
         } else {
-          obj[header] = row[i];
+          obj[header] = cellValue;
         }
       });
       return obj;
