@@ -275,38 +275,43 @@
 
         /**
          * Inicializa la aplicación: obtiene la API key y los datos de la FAQ.
+         * **CAMBIO CLAVE**: Se reescribe con .then() para mayor compatibilidad.
          */
-        const initialize = async () => {
-            try {
-                showLoader(true, 'Inicializando aplicación...');
-                logMessage(bulkLog, 'Obteniendo API Key de Google Script...');
-                
-                const keyResponse = await fetchFromGoogleScript('getApiKey');
-                
-                if (keyResponse && keyResponse.status === 'success') {
-                    apiKey = keyResponse.apiKey;
-                    logMessage(bulkLog, 'API Key obtenida con éxito.', 'success');
-                } else {
-                    const errorMsg = (keyResponse && keyResponse.message) ? keyResponse.message : "Respuesta nula o inválida del script.";
-                    throw new Error(`Fallo al obtener la API Key. Causa: ${errorMsg}`);
-                }
+        const initialize = () => {
+            showLoader(true, 'Inicializando aplicación...');
+            logMessage(bulkLog, 'Obteniendo API Key de Google Script...');
 
-                logMessage(bulkLog, 'Cargando datos existentes de la FAQ...');
-                const dataResponse = await fetchFromGoogleScript('getData');
-                if (dataResponse && dataResponse.status === 'success') {
-                    faqData = dataResponse.data;
-                    logMessage(bulkLog, `Se han cargado ${faqData.length} entradas de la FAQ.`, 'success');
-                } else {
-                    const errorMsg = (dataResponse && dataResponse.message) ? dataResponse.message : "Respuesta nula o inválida del script.";
-                    throw new Error(`No se pudieron cargar los datos de la FAQ. Causa: ${errorMsg}`);
-                }
-
-            } catch (error) {
-                console.error("Error durante la inicialización:", error);
-                logMessage(bulkLog, `Error crítico al iniciar: ${error.message}`, 'error');
-            } finally {
-                showLoader(false);
-            }
+            fetchFromGoogleScript('getApiKey')
+                .then(keyResponse => {
+                    if (keyResponse && keyResponse.status === 'success') {
+                        apiKey = keyResponse.apiKey;
+                        logMessage(bulkLog, 'API Key obtenida con éxito.', 'success');
+                        logMessage(bulkLog, 'Cargando datos existentes de la FAQ...');
+                        // Encadenar la siguiente llamada a la API
+                        return fetchFromGoogleScript('getData');
+                    } else {
+                        const errorMsg = (keyResponse && keyResponse.message) ? keyResponse.message : "Respuesta nula o inválida del script.";
+                        throw new Error(`Fallo al obtener la API Key. Causa: ${errorMsg}`);
+                    }
+                })
+                .then(dataResponse => {
+                    if (dataResponse && dataResponse.status === 'success') {
+                        faqData = dataResponse.data;
+                        logMessage(bulkLog, `Se han cargado ${faqData.length} entradas de la FAQ.`, 'success');
+                    } else {
+                        const errorMsg = (dataResponse && dataResponse.message) ? dataResponse.message : "Respuesta nula o inválida del script.";
+                        throw new Error(`No se pudieron cargar los datos de la FAQ. Causa: ${errorMsg}`);
+                    }
+                })
+                .catch(error => {
+                    console.error("Error durante la inicialización:", error);
+                    logMessage(bulkLog, `Error crítico al iniciar: ${error.message}`, 'error');
+                })
+                .finally(() => {
+                    // Este bloque se ejecuta siempre, haya error o no.
+                    console.log("Bloque finally alcanzado. Ocultando loader.");
+                    showLoader(false);
+                });
         };
 
         /**
