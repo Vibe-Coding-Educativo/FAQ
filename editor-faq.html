@@ -168,7 +168,7 @@
             };
             const entry = document.createElement('p');
             entry.className = `log-entry ${colors[type]}`;
-            entry.innerHTML = `<span class="mr-2">${new Date().toLocaleTimeString()}</span> > ${message}`;
+            entry.innerHTML = `<span class="mr-2">${new Date().toLocaleTimeString()}</span> > ${message.replace(/\n/g, '<br>')}`;
             logElement.appendChild(entry);
             logElement.scrollTop = logElement.scrollHeight;
         };
@@ -199,25 +199,35 @@
 
         // --- COMUNICACIÓN CON GOOGLE APPS SCRIPT ---
         const fetchFromGoogleScript = async (action, payload = {}) => {
+            console.log(`Iniciando fetch a Google Script para la acción: ${action}`);
             try {
-                // Usamos el método POST que es el que está definido en el script (doPost)
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'cors', // CORS es necesario para peticiones entre dominios
-                    // Google Apps Script requiere que el payload esté como un string de texto plano
-                    // en lugar de JSON, por eso no se usa la cabecera 'Content-Type': 'application/json'
+                    mode: 'cors',
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8',
+                    },
                     body: JSON.stringify({ action, data: payload }),
                 });
 
+                console.log(`Respuesta recibida del script. OK: ${response.ok}, Status: ${response.status}`);
+
                 if (!response.ok) {
-                    throw new Error(`Error en la comunicación con el script: ${response.status} ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`Error en la comunicación con el script: ${response.status} ${response.statusText}. Respuesta del servidor: ${errorText}`);
                 }
-                // La respuesta del script es un JSON, por lo que la parseamos
-                return await response.json();
+                
+                const result = await response.json();
+                console.log(`JSON parseado de la respuesta:`, result);
+                return result;
+
             } catch (error) {
-                console.error('Error en fetchFromGoogleScript:', error);
-                logMessage(bulkLog, `Error de red: ${error.message}`, 'error');
-                logSingleMessage(`Error de red: ${error.message}`, 'error');
+                console.error('Error detallado en fetchFromGoogleScript:', error);
+                let errorMessage = `Error de red al contactar el script.\n`;
+                errorMessage += `Detalle: ${error.message}.\n`;
+                errorMessage += `Asegúrate de que el script de Google está desplegado correctamente con acceso para "Cualquier usuario".`;
+                logMessage(bulkLog, errorMessage, 'error');
+                logSingleMessage(errorMessage, 'error');
                 return null;
             }
         };
@@ -267,37 +277,36 @@
          * Inicializa la aplicación: obtiene la API key y los datos de la FAQ.
          */
         const initialize = async () => {
-            showLoader(true, 'Inicializando aplicación...');
-            logMessage(bulkLog, 'Obteniendo API Key de Google Script...');
-            const keyResponse = await fetchFromGoogleScript('getApiKey');
-            if (keyResponse && keyResponse.status === 'success') {
-                apiKey = keyResponse.apiKey;
-                logMessage(bulkLog, 'API Key obtenida con éxito.', 'success');
-            } else {
-                const errorMessage = keyResponse ? keyResponse.message : 'Respuesta nula del script.';
-                logMessage(bulkLog, `Fallo al obtener la API Key. ${errorMessage}`, 'error');
+            try {
+                showLoader(true, 'Inicializando aplicación...');
+                logMessage(bulkLog, 'Obteniendo API Key de Google Script...');
+                
+                const keyResponse = await fetchFromGoogleScript('getApiKey');
+                
+                if (keyResponse && keyResponse.status === 'success') {
+                    apiKey = keyResponse.apiKey;
+                    logMessage(bulkLog, 'API Key obtenida con éxito.', 'success');
+                } else {
+                    const errorMsg = (keyResponse && keyResponse.message) ? keyResponse.message : "Respuesta nula o inválida del script.";
+                    throw new Error(`Fallo al obtener la API Key. Causa: ${errorMsg}`);
+                }
+
+                logMessage(bulkLog, 'Cargando datos existentes de la FAQ...');
+                const dataResponse = await fetchFromGoogleScript('getData');
+                if (dataResponse && dataResponse.status === 'success') {
+                    faqData = dataResponse.data;
+                    logMessage(bulkLog, `Se han cargado ${faqData.length} entradas de la FAQ.`, 'success');
+                } else {
+                    const errorMsg = (dataResponse && dataResponse.message) ? dataResponse.message : "Respuesta nula o inválida del script.";
+                    throw new Error(`No se pudieron cargar los datos de la FAQ. Causa: ${errorMsg}`);
+                }
+
+            } catch (error) {
+                console.error("Error durante la inicialización:", error);
+                logMessage(bulkLog, `Error crítico al iniciar: ${error.message}`, 'error');
+            } finally {
                 showLoader(false);
-                return;
             }
-
-            logMessage(bulkLog, 'Cargando datos existentes de la FAQ...');
-            await refreshFaqData();
-            showLoader(false);
-        };
-
-        /**
-         * Actualiza los datos de la FAQ desde la hoja de cálculo.
-         */
-        const refreshFaqData = async () => {
-             logMessage(bulkLog, 'Leyendo la hoja de cálculo...', 'info');
-             const dataResponse = await fetchFromGoogleScript('getData');
-             if (dataResponse && dataResponse.status === 'success') {
-                 faqData = dataResponse.data;
-                 logMessage(bulkLog, `Se han cargado ${faqData.length} entradas de la FAQ.`, 'success');
-             } else {
-                 logMessage(bulkLog, 'No se pudieron cargar los datos de la FAQ o está vacía.', 'warn');
-                 faqData = [];
-             }
         };
 
         /**
@@ -322,7 +331,9 @@
         const isSemanticDuplicate = async (newQuestion) => {
             if (faqData.length === 0) return false;
 
-            const existingQuestions = faqData.map(item => item.pregunta);
+            const existingQuestions = faqData.map(item => item.pregunta).filter(Boolean); // Filtra nulos o undefined
+            if(existingQuestions.length === 0) return false;
+
             const prompt = `Eres un sistema experto en detectar duplicados semánticos en una base de conocimientos sobre programación educativa. Compara la "NUEVA PREGUNTA" con cada una de las "PREGUNTAS EXISTENTES". Si la nueva pregunta es esencialmente la misma que una existente (aunque esté formulada de otra manera), responde únicamente con la palabra "true". Si es una pregunta genuinamente nueva, responde únicamente con la palabra "false".
 
 NUEVA PREGUNTA: "${newQuestion}"
@@ -338,53 +349,57 @@ PREGUNTAS EXISTENTES:
          * Procesa el texto en bloque.
          */
         const handleBulkProcess = async () => {
-            if (isLoading) return;
+            if (isLoading || !apiKey) {
+                logMessage(bulkLog, 'La aplicación no está lista o falta la API Key.', 'error');
+                return;
+            }
             const text = bulkInput.value.trim();
             if (!text) {
                 logMessage(bulkLog, 'El área de texto está vacía.', 'warn');
                 return;
             }
-
-            showLoader(true, 'Procesando texto...');
-            logMessage(bulkLog, 'Parseando preguntas y respuestas...');
-            const parsedPairs = parseBulkInput(text);
-            if (parsedPairs.length === 0) {
-                logMessage(bulkLog, 'No se encontraron pares de pregunta/respuesta válidos.', 'error');
-                showLoader(false);
-                return;
-            }
-            logMessage(bulkLog, `Se han encontrado ${parsedPairs.length} pares.`, 'success');
-
-            logMessage(bulkLog, 'Actualizando datos de la FAQ antes de comprobar duplicados...');
-            showLoader(true, 'Actualizando datos...');
-            await refreshFaqData();
-
-            const nonDuplicates = [];
-            for (const pair of parsedPairs) {
-                showLoader(true, `Comprobando duplicado: "${pair.pregunta.substring(0, 30)}..."`);
-                logMessage(bulkLog, `Comprobando duplicado semántico para: "${pair.pregunta}"`);
-                const isDuplicate = await isSemanticDuplicate(pair.pregunta);
-                if (isDuplicate) {
-                    logMessage(bulkLog, `-> Duplicado encontrado. Se omitirá.`, 'warn');
-                } else {
-                    logMessage(bulkLog, `-> No es duplicado. Se procesará.`, 'success');
-                    nonDuplicates.push(pair);
+            try {
+                showLoader(true, 'Procesando texto...');
+                logMessage(bulkLog, 'Parseando preguntas y respuestas...');
+                const parsedPairs = parseBulkInput(text);
+                if (parsedPairs.length === 0) {
+                    throw new Error('No se encontraron pares de pregunta/respuesta válidos.');
                 }
-            }
+                logMessage(bulkLog, `Se han encontrado ${parsedPairs.length} pares.`, 'success');
 
-            if (nonDuplicates.length === 0) {
-                logMessage(bulkLog, 'Todas las preguntas eran duplicados o no había preguntas nuevas.', 'info');
-                showLoader(false);
-                return;
-            }
+                logMessage(bulkLog, 'Actualizando datos de la FAQ antes de comprobar duplicados...');
+                const dataResponse = await fetchFromGoogleScript('getData');
+                if (dataResponse && dataResponse.status === 'success') {
+                    faqData = dataResponse.data;
+                } else {
+                    throw new Error("No se pudo refrescar la data de la FAQ para comprobar duplicados.");
+                }
 
-            showLoader(true, 'Generando categorías y palabras clave...');
-            logMessage(bulkLog, `Enviando ${nonDuplicates.length} preguntas a la IA para su enriquecimiento...`);
+                const nonDuplicates = [];
+                for (const pair of parsedPairs) {
+                    showLoader(true, `Comprobando duplicado: "${pair.pregunta.substring(0, 30)}..."`);
+                    logMessage(bulkLog, `Comprobando duplicado semántico para: "${pair.pregunta}"`);
+                    const isDuplicate = await isSemanticDuplicate(pair.pregunta);
+                    if (isDuplicate) {
+                        logMessage(bulkLog, `-> Duplicado encontrado. Se omitirá.`, 'warn');
+                    } else {
+                        logMessage(bulkLog, `-> No es duplicado. Se procesará.`, 'success');
+                        nonDuplicates.push(pair);
+                    }
+                }
 
-            const existingCategories = [...new Set(faqData.flatMap(item => item.categorias || []))];
-            const existingKeywords = [...new Set(faqData.flatMap(item => item.palabras_clave || []))];
+                if (nonDuplicates.length === 0) {
+                    logMessage(bulkLog, 'Todas las preguntas eran duplicados o no había preguntas nuevas.', 'info');
+                    return;
+                }
 
-            const prompt = `Eres un asistente experto en Vibe Coding educativo. Tu tarea es procesar una lista de preguntas y respuestas. Para cada una, debes generar categorías y palabras clave relevantes.
+                showLoader(true, 'Generando categorías y palabras clave...');
+                logMessage(bulkLog, `Enviando ${nonDuplicates.length} preguntas a la IA para su enriquecimiento...`);
+
+                const existingCategories = [...new Set(faqData.flatMap(item => item.categorias || []))];
+                const existingKeywords = [...new Set(faqData.flatMap(item => item.palabras_clave || []))];
+
+                const prompt = `Eres un asistente experto en Vibe Coding educativo. Tu tarea es procesar una lista de preguntas y respuestas. Para cada una, debes generar categorías y palabras clave relevantes.
 - Reutiliza las categorías existentes si es posible. Las categorías existentes son: [${existingCategories.join(', ')}].
 - Reutiliza las palabras clave existentes si es posible. Las palabras clave existentes son: [${existingKeywords.join(', ')}].
 - Crea nuevas categorías o palabras clave solo si es estrictamente necesario.
@@ -395,21 +410,20 @@ Procesa las siguientes preguntas y respuestas:
 ${JSON.stringify(nonDuplicates, null, 2)}
 `;
 
-            const schema = {
-                type: "ARRAY",
-                items: {
-                    type: "OBJECT",
-                    properties: {
-                        pregunta: { type: "STRING" },
-                        respuesta: { type: "STRING" },
-                        categorias: { type: "ARRAY", items: { type: "STRING" } },
-                        palabras_clave: { type: "ARRAY", items: { type: "STRING" } }
-                    },
-                    required: ["pregunta", "respuesta", "categorias", "palabras_clave"]
-                }
-            };
-
-            try {
+                const schema = {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            pregunta: { type: "STRING" },
+                            respuesta: { type: "STRING" },
+                            categorias: { type: "ARRAY", items: { type: "STRING" } },
+                            palabras_clave: { type: "ARRAY", items: { type: "STRING" } }
+                        },
+                        required: ["pregunta", "respuesta", "categorias", "palabras_clave"]
+                    }
+                };
+                
                 const processedData = await callGemini(prompt, schema);
                 logMessage(bulkLog, 'Datos enriquecidos por la IA con éxito.', 'success');
                 
@@ -422,10 +436,11 @@ ${JSON.stringify(nonDuplicates, null, 2)}
                     logMessage(bulkLog, `Éxito: ${addResponse.message}`, 'success');
                     bulkInput.value = ''; // Limpiar input
                 } else {
-                    logMessage(bulkLog, `Error al añadir datos: ${addResponse ? addResponse.message : 'Respuesta nula'}`, 'error');
+                    throw new Error(addResponse ? addResponse.message : 'Error desconocido al añadir datos.');
                 }
             } catch (error) {
-                logMessage(bulkLog, `Error al procesar con IA: ${error.message}`, 'error');
+                console.error("Error durante el proceso en bloque:", error);
+                logMessage(bulkLog, `Error: ${error.message}`, 'error');
             } finally {
                 showLoader(false);
             }
@@ -435,7 +450,10 @@ ${JSON.stringify(nonDuplicates, null, 2)}
          * Pide a la IA una reformulación para una pregunta y respuesta individual.
          */
         const handleSuggestReformulation = async () => {
-            if (isLoading) return;
+            if (isLoading || !apiKey) {
+                logSingleMessage('La aplicación no está lista o falta la API Key.', 'error');
+                return;
+            }
             const question = singleQuestion.value.trim();
             const answer = singleAnswer.value.trim();
 
@@ -444,26 +462,26 @@ ${JSON.stringify(nonDuplicates, null, 2)}
                 return;
             }
             
-            showLoader(true, 'Generando sugerencia...');
-            logSingleMessage('La IA está pensando en una mejor forma de explicarlo...', 'info');
+            try {
+                showLoader(true, 'Generando sugerencia...');
+                logSingleMessage('La IA está pensando en una mejor forma de explicarlo...', 'info');
 
-            const prompt = `Eres un asistente experto en Vibe Coding para entornos educativos. Tu tarea es reformular una pregunta y una respuesta para que sean más claras, concisas y didácticas para docentes que no son expertos en programación. Evita la jerga técnica excesiva y enfócate en los conceptos pedagógicos y prácticos.
+                const prompt = `Eres un asistente experto en Vibe Coding para entornos educativos. Tu tarea es reformular una pregunta y una respuesta para que sean más claras, concisas y didácticas para docentes que no son expertos en programación. Evita la jerga técnica excesiva y enfócate en los conceptos pedagógicos y prácticos.
 
 PREGUNTA ORIGINAL: "${question}"
 RESPUESTA ORIGINAL: "${answer}"
 
 Proporciona una versión reformulada.`;
-            
-            const schema = {
-                type: "OBJECT",
-                properties: {
-                    pregunta_sugerida: {type: "STRING"},
-                    respuesta_sugerida: {type: "STRING"}
-                },
-                required: ["pregunta_sugerida", "respuesta_sugerida"]
-            };
+                
+                const schema = {
+                    type: "OBJECT",
+                    properties: {
+                        pregunta_sugerida: {type: "STRING"},
+                        respuesta_sugerida: {type: "STRING"}
+                    },
+                    required: ["pregunta_sugerida", "respuesta_sugerida"]
+                };
 
-            try {
                 const suggestion = await callGemini(prompt, schema);
                 suggestedQuestion.value = suggestion.pregunta_sugerida;
                 suggestedAnswer.value = suggestion.respuesta_sugerida;
@@ -480,7 +498,10 @@ Proporciona una versión reformulada.`;
          * Añade la pregunta individual (con su sugerencia) a la hoja de cálculo.
          */
         const handleAcceptAndAdd = async () => {
-            if (isLoading) return;
+            if (isLoading || !apiKey) {
+                logSingleMessage('La aplicación no está lista o falta la API Key.', 'error');
+                return;
+            }
             const question = suggestedQuestion.value.trim();
             const answer = suggestedAnswer.value.trim();
 
@@ -488,26 +509,31 @@ Proporciona una versión reformulada.`;
                 logSingleMessage('La pregunta y respuesta sugeridas no pueden estar vacías.', 'error');
                 return;
             }
-
-            showLoader(true, 'Comprobando duplicados...');
-            logSingleMessage('Comprobando duplicados semánticos...', 'info');
             
-            await refreshFaqData();
-            const isDuplicate = await isSemanticDuplicate(question);
+            try {
+                showLoader(true, 'Comprobando duplicados...');
+                logSingleMessage('Comprobando duplicados semánticos...', 'info');
+                
+                const dataResponse = await fetchFromGoogleScript('getData');
+                if (dataResponse && dataResponse.status === 'success') {
+                    faqData = dataResponse.data;
+                } else {
+                    throw new Error("No se pudo refrescar la data de la FAQ para comprobar duplicados.");
+                }
 
-            if (isDuplicate) {
-                showLoader(false);
-                logSingleMessage('Esta pregunta parece ser un duplicado de una ya existente.', 'error');
-                return;
-            }
-            
-            logSingleMessage('No es un duplicado. Generando categorías y palabras clave...', 'info');
-            showLoader(true, 'Generando metadatos...');
-            
-            const existingCategories = [...new Set(faqData.flatMap(item => item.categorias || []))];
-            const existingKeywords = [...new Set(faqData.flatMap(item => item.palabras_clave || []))];
+                const isDuplicate = await isSemanticDuplicate(question);
 
-            const prompt = `Eres un asistente experto en Vibe Coding educativo. Tu tarea es generar categorías y palabras clave para la siguiente pregunta y respuesta.
+                if (isDuplicate) {
+                    throw new Error('Esta pregunta parece ser un duplicado de una ya existente.');
+                }
+                
+                logSingleMessage('No es un duplicado. Generando categorías y palabras clave...', 'info');
+                showLoader(true, 'Generando metadatos...');
+                
+                const existingCategories = [...new Set(faqData.flatMap(item => item.categorias || []))];
+                const existingKeywords = [...new Set(faqData.flatMap(item => item.palabras_clave || []))];
+
+                const prompt = `Eres un asistente experto en Vibe Coding educativo. Tu tarea es generar categorías y palabras clave para la siguiente pregunta y respuesta.
 - Reutiliza las categorías existentes si es posible. Las categorías existentes son: [${existingCategories.join(', ')}].
 - Reutiliza las palabras clave existentes si es posible. Las palabras clave existentes son: [${existingKeywords.join(', ')}].
 - Crea nuevas categorías o palabras clave solo si es estrictamente necesario.
@@ -516,16 +542,15 @@ Proporciona una versión reformulada.`;
 PREGUNTA: "${question}"
 RESPUESTA: "${answer}"
 `;
-            const schema = {
-                type: "OBJECT",
-                properties: {
-                    categorias: { type: "ARRAY", items: { type: "STRING" } },
-                    palabras_clave: { type: "ARRAY", items: { type: "STRING" } }
-                },
-                required: ["categorias", "palabras_clave"]
-            };
+                const schema = {
+                    type: "OBJECT",
+                    properties: {
+                        categorias: { type: "ARRAY", items: { type: "STRING" } },
+                        palabras_clave: { type: "ARRAY", items: { type: "STRING" } }
+                    },
+                    required: ["categorias", "palabras_clave"]
+                };
 
-            try {
                 const metadata = await callGemini(prompt, schema);
                 const finalData = [{
                     pregunta: question,
@@ -546,11 +571,12 @@ RESPUESTA: "${answer}"
                     suggestedAnswer.value = '';
                     suggestionContainer.classList.add('hidden');
                 } else {
-                     logSingleMessage(`Error al añadir: ${addResponse ? addResponse.message : 'Respuesta nula'}`, 'error');
+                    throw new Error(addResponse ? addResponse.message : 'Error desconocido al añadir la pregunta.');
                 }
 
             } catch (error) {
-                logSingleMessage(`Error en el paso final: ${error.message}`, 'error');
+                console.error("Error al aceptar y añadir:", error);
+                logSingleMessage(`${error.message}`, 'error');
             } finally {
                 showLoader(false);
             }
