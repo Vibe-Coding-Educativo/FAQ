@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ de Vibe Coding para Docentes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .tab-button.active {
+            border-color: #4f46e5;
+            color: #4f46e5;
+            background-color: #eef2ff;
+        }
+        #loader {
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(5px);
+        }
+        .faq-item[open] summary {
+            font-weight: 600;
+        }
+        .faq-item p {
+            padding-top: 0.5rem;
+            padding-bottom: 1rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            line-height: 1.6;
+        }
+        .highlight {
+            background-color: #fef3c7;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <!-- Loader Overlay -->
+    <div id="loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center">
+        <div class="w-16 h-16 border-4 border-t-4 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        <p id="loader-text" class="mt-4 text-lg font-medium text-indigo-600">Cargando preguntas...</p>
+    </div>
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
+        <header class="mb-6 text-center">
+            <h1 class="text-4xl font-bold text-gray-900">FAQ de Vibe Coding</h1>
+            <p class="text-lg text-gray-600 mt-2">Tu centro de ayuda para la programación educativa.</p>
+        </header>
+
+        <!-- Tabs -->
+        <div class="mb-6 border-b border-gray-200">
+            <nav class="flex space-x-2 sm:space-x-4 justify-center" aria-label="Tabs">
+                <button id="tab-btn-explore" class="tab-button active whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm sm:text-base">
+                    Explorar FAQ
+                </button>
+                <button id="tab-btn-ai" class="tab-button whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm sm:text-base">
+                    Preguntar a la IA
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tab Content -->
+        <div>
+            <!-- Explore Tab -->
+            <div id="tab-content-explore">
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <input type="search" id="search-input" placeholder="Buscar por palabra clave..." class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                        <select id="category-filter" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"></select>
+                    </div>
+                    <div id="faq-container" class="space-y-2">
+                        <p class="text-center text-gray-500 p-8">Cargando contenido...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Chat Tab -->
+            <div id="tab-content-ai" class="hidden">
+                 <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h2 class="text-xl font-semibold mb-4 text-center">Asistente de Vibe Coding</h2>
+                    <div id="ai-response-container" class="mb-4 p-4 bg-indigo-50 rounded-md min-h-[100px] text-gray-700 leading-relaxed">
+                        <p>Hola, soy tu asistente. Pregúntame cualquier duda que tengas sobre Vibe Coding y te responderé basándome en la información de esta FAQ.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="ai-question-input" placeholder="Ej: ¿Cómo puedo usar mi propia API key?" class="flex-grow p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                        <button id="ai-ask-btn" class="px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">Enviar</button>
+                    </div>
+                 </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- CONFIGURACIÓN ---
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz3mmQ8cWOwExcbRfK8SLPrOlh8jIeybEzdLqLVZbISlJM6W14VGrVBkHxb93QLVVqUkg/exec';
+        const GEMINI_MODEL = 'gemini-1.5-flash';
+
+        // --- REFERENCIAS AL DOM ---
+        const loader = document.getElementById('loader');
+        const loaderText = document.getElementById('loader-text');
+        
+        const tabBtnExplore = document.getElementById('tab-btn-explore');
+        const tabBtnAi = document.getElementById('tab-btn-ai');
+        const contentExplore = document.getElementById('tab-content-explore');
+        const contentAi = document.getElementById('tab-content-ai');
+
+        const searchInput = document.getElementById('search-input');
+        const categoryFilter = document.getElementById('category-filter');
+        const faqContainer = document.getElementById('faq-container');
+
+        const aiQuestionInput = document.getElementById('ai-question-input');
+        const aiAskBtn = document.getElementById('ai-ask-btn');
+        const aiResponseContainer = document.getElementById('ai-response-container');
+
+        // --- ESTADO DE LA APLICACIÓN ---
+        let apiKey = null;
+        let allFaqs = [];
+
+        // --- FUNCIONES DE UI ---
+        const showLoader = (show, text = 'Procesando...') => {
+            loaderText.textContent = text;
+            if (show) {
+                loader.classList.remove('hidden');
+            } else {
+                loader.classList.add('hidden');
+            }
+        };
+
+        const switchTab = (tabName) => {
+            if (tabName === 'explore') {
+                contentExplore.classList.remove('hidden');
+                contentAi.classList.add('hidden');
+                tabBtnExplore.classList.add('active');
+                tabBtnAi.classList.remove('active');
+            } else {
+                contentExplore.classList.add('hidden');
+                contentAi.classList.remove('hidden');
+                tabBtnExplore.classList.remove('active');
+                tabBtnAi.classList.add('active');
+            }
+        };
+
+        const renderFaqs = (faqsToRender) => {
+            faqContainer.innerHTML = '';
+            if (faqsToRender.length === 0) {
+                faqContainer.innerHTML = '<p class="text-center text-gray-500 p-8">No se encontraron resultados para tu búsqueda.</p>';
+                return;
+            }
+
+            const searchTerm = searchInput.value.toLowerCase();
+
+            faqsToRender.forEach(faq => {
+                const details = document.createElement('details');
+                details.className = 'faq-item bg-gray-50 rounded-lg border border-gray-200 cursor-pointer';
+
+                const summary = document.createElement('summary');
+                summary.className = 'p-4 font-medium text-gray-800';
+                
+                let questionText = faq.pregunta || '';
+                if(searchTerm){
+                    questionText = questionText.replace(new RegExp(searchTerm, 'gi'), match => `<span class="highlight">${match}</span>`);
+                }
+                summary.innerHTML = questionText;
+
+                let answerText = faq.respuesta || '';
+                if(searchTerm){
+                    answerText = answerText.replace(new RegExp(searchTerm, 'gi'), match => `<span class="highlight">${match}</span>`);
+                }
+
+                const answerP = document.createElement('p');
+                answerP.innerHTML = answerText;
+                
+                details.appendChild(summary);
+                details.appendChild(answerP);
+                faqContainer.appendChild(details);
+            });
+        };
+
+        const populateCategories = () => {
+            const categories = new Set();
+            allFaqs.forEach(faq => {
+                (faq.categorías || []).forEach(cat => categories.add(cat));
+            });
+
+            categoryFilter.innerHTML = '<option value="all">Todas las categorías</option>';
+            [...categories].sort().forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                categoryFilter.appendChild(option);
+            });
+        };
+
+        // --- LÓGICA DE FILTRADO Y BÚSQUEDA ---
+        const filterAndSearch = () => {
+            const category = categoryFilter.value;
+            const searchTerm = searchInput.value.toLowerCase();
+
+            let filteredFaqs = allFaqs;
+
+            if (category !== 'all') {
+                filteredFaqs = filteredFaqs.filter(faq => (faq.categorías || []).includes(category));
+            }
+
+            if (searchTerm) {
+                filteredFaqs = filteredFaqs.filter(faq => 
+                    (faq.pregunta || '').toLowerCase().includes(searchTerm) ||
+                    (faq.respuesta || '').toLowerCase().includes(searchTerm) ||
+                    (faq.categorías || []).join(' ').toLowerCase().includes(searchTerm) ||
+                    (faq.palabras_clave || []).join(' ').toLowerCase().includes(searchTerm)
+                );
+            }
+
+            renderFaqs(filteredFaqs);
+        };
+        
+        // --- COMUNICACIÓN CON GOOGLE APPS SCRIPT ---
+        const fetchFromGoogleScript = async (action, payload = {}) => {
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action, data: payload }),
+                });
+                if (!response.ok) throw new Error(`Error en la comunicación con el script: ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error('Error detallado en fetchFromGoogleScript:', error);
+                return null;
+            }
+        };
+        
+        // --- COMUNICACIÓN CON LA API DE GEMINI ---
+        const callGemini = async (prompt) => {
+            if (!apiKey) throw new Error("API Key de Gemini no disponible.");
+            
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0) {
+                    return result.candidates[0].content.parts[0].text;
+                }
+                throw new Error("Respuesta inesperada de la API de Gemini.");
+            } catch (error) {
+                console.error('Error en callGemini:', error);
+                throw error;
+            }
+        };
+
+        // --- LÓGICA DE LA IA ---
+        const handleAIChat = async () => {
+            const userQuestion = aiQuestionInput.value.trim();
+            if (!userQuestion || !apiKey) {
+                aiResponseContainer.innerHTML = '<p class="text-red-600">Por favor, escribe una pregunta. La aplicación también debe estar inicializada.</p>';
+                return;
+            }
+
+            aiResponseContainer.innerHTML = '<p>Pensando...</p>';
+            aiAskBtn.disabled = true;
+
+            const faqContext = allFaqs.map(faq => `Pregunta: ${faq.pregunta}\nRespuesta: ${faq.respuesta}`).join('\n\n---\n\n');
+
+            const prompt = `Eres un asistente experto en Vibe Coding educativo. Responde a la pregunta del usuario basándote *únicamente* en la siguiente base de conocimientos (FAQ). No inventes información. Si la respuesta no se encuentra en la FAQ, responde amablemente que no tienes esa información en tu base de conocimientos. Después de tu respuesta, cita la pregunta exacta de la FAQ que has usado como fuente principal, bajo el título 'Fuente:'. Si has usado varias, cita la más relevante.
+
+--- BASE DE CONOCIMIENTOS (FAQ) ---
+${faqContext}
+--- FIN DE LA BASE DE CONOCIMIENTOS ---
+
+PREGUNTA DEL USUARIO: "${userQuestion}"
+`;
+
+            try {
+                const response = await callGemini(prompt);
+                aiResponseContainer.innerHTML = response.replace(/\n/g, '<br>');
+            } catch (error) {
+                aiResponseContainer.innerHTML = `<p class="text-red-600">Hubo un error al contactar a la IA: ${error.message}</p>`;
+            } finally {
+                aiAskBtn.disabled = false;
+                aiQuestionInput.value = '';
+            }
+        };
+
+        // --- INICIO ---
+        const initialize = () => {
+            fetchFromGoogleScript('getData')
+                .then(dataResponse => {
+                    if (dataResponse && dataResponse.status === 'success') {
+                        allFaqs = dataResponse.data;
+                        renderFaqs(allFaqs);
+                        populateCategories();
+                        // Obtener la API key en segundo plano para el chat
+                        fetchFromGoogleScript('getApiKey').then(keyResponse => {
+                            if (keyResponse && keyResponse.status === 'success') {
+                                apiKey = keyResponse.apiKey;
+                            }
+                        });
+                    } else {
+                        throw new Error("No se pudieron cargar los datos de la FAQ.");
+                    }
+                })
+                .catch(error => {
+                    console.error("Error durante la inicialización:", error);
+                    faqContainer.innerHTML = `<p class="text-center text-red-600 p-8">Error al cargar el contenido de la FAQ. Por favor, inténtalo de nuevo más tarde.</p>`;
+                })
+                .finally(() => {
+                    showLoader(false);
+                });
+        };
+
+        // --- EVENT LISTENERS ---
+        tabBtnExplore.addEventListener('click', () => switchTab('explore'));
+        tabBtnAi.addEventListener('click', () => switchTab('ai'));
+
+        searchInput.addEventListener('input', filterAndSearch);
+        categoryFilter.addEventListener('change', filterAndSearch);
+
+        aiAskBtn.addEventListener('click', handleAIChat);
+        aiQuestionInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                handleAIChat();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', initialize);
+
+    </script>
+</body>
+</html>
