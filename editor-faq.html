@@ -79,21 +79,25 @@
                         <h2 class="text-xl font-semibold mb-4">Añadir pregunta individual</h2>
                         <div class="space-y-4">
                             <div>
-                                <label for="single-question" class="block text-sm font-medium text-gray-700">Pregunta</label>
+                                <label for="single-question" class="block text-sm font-medium text-gray-700">Pregunta Original</label>
                                 <input type="text" id="single-question" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500">
                             </div>
                             <div>
-                                <label for="single-answer" class="block text-sm font-medium text-gray-700">Respuesta</label>
+                                <label for="single-answer" class="block text-sm font-medium text-gray-700">Respuesta Original</label>
                                 <textarea id="single-answer" rows="5" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
                             </div>
+                             <div>
+                                <label for="single-instructions" class="block text-sm font-medium text-gray-700">Instrucciones para la IA (opcional)</label>
+                                <textarea id="single-instructions" rows="2" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ej: Hazlo más simple, añade un ejemplo práctico..."></textarea>
+                            </div>
                             <button id="suggest-reformulation-btn" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">
-                                Sugerir reformulación
+                                Generar sugerencia completa
                             </button>
                         </div>
                     </div>
                     <!-- Suggestion Column -->
                     <div id="suggestion-container" class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hidden">
-                        <h2 class="text-xl font-semibold mb-4">Sugerencia de la IA</h2>
+                        <h2 class="text-xl font-semibold mb-4">Sugerencia de la IA (Editable)</h2>
                         <p class="text-gray-600 mb-4">Revisa y edita las sugerencias. Una vez estés conforme, pulsa en "Aceptar y añadir".</p>
                         <div class="space-y-4">
                             <div>
@@ -103,6 +107,14 @@
                             <div>
                                 <label for="suggested-answer" class="block text-sm font-medium text-gray-700">Respuesta sugerida</label>
                                 <textarea id="suggested-answer" rows="5" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-indigo-50 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                            </div>
+                             <div>
+                                <label for="suggested-categories" class="block text-sm font-medium text-gray-700">Categorías sugeridas (separadas por comas)</label>
+                                <input type="text" id="suggested-categories" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-indigo-50 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ej: Primeros pasos, Sprites">
+                            </div>
+                            <div>
+                                <label for="suggested-keywords" class="block text-sm font-medium text-gray-700">Palabras clave sugeridas (separadas por comas)</label>
+                                <input type="text" id="suggested-keywords" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-indigo-50 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ej: personaje, movimiento, bloque">
                             </div>
                             <button id="accept-add-btn" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition">
                                 Aceptar y añadir a la FAQ
@@ -135,10 +147,13 @@
 
         const singleQuestion = document.getElementById('single-question');
         const singleAnswer = document.getElementById('single-answer');
+        const singleInstructions = document.getElementById('single-instructions');
         const suggestBtn = document.getElementById('suggest-reformulation-btn');
         const suggestionContainer = document.getElementById('suggestion-container');
         const suggestedQuestion = document.getElementById('suggested-question');
         const suggestedAnswer = document.getElementById('suggested-answer');
+        const suggestedCategories = document.getElementById('suggested-categories');
+        const suggestedKeywords = document.getElementById('suggested-keywords');
         const acceptBtn = document.getElementById('accept-add-btn');
         const singleLog = document.getElementById('single-log');
 
@@ -218,7 +233,6 @@
                 
                 const result = await response.json();
                 
-                // **CAMBIO DE SEGURIDAD**: No mostrar la respuesta de getApiKey en la consola.
                 if (action === 'getApiKey' && result.status === 'success') {
                     console.log('Respuesta para getApiKey recibida con éxito.');
                 } else {
@@ -442,7 +456,7 @@ ${JSON.stringify(nonDuplicates, null, 2)}
 
                 if (addResponse && addResponse.status === 'success') {
                     logMessage(bulkLog, `Éxito: ${addResponse.message}`, 'success');
-                    bulkInput.value = ''; // Limpiar input
+                    bulkInput.value = '';
                 } else {
                     throw new Error(addResponse ? addResponse.message : 'Error desconocido al añadir datos.');
                 }
@@ -455,7 +469,7 @@ ${JSON.stringify(nonDuplicates, null, 2)}
         };
         
         /**
-         * Pide a la IA una reformulación para una pregunta y respuesta individual.
+         * Pide a la IA una reformulación y metadatos para una pregunta y respuesta individual.
          */
         const handleSuggestReformulation = async () => {
             if (isLoading || !apiKey) {
@@ -464,6 +478,7 @@ ${JSON.stringify(nonDuplicates, null, 2)}
             }
             const question = singleQuestion.value.trim();
             const answer = singleAnswer.value.trim();
+            const instructions = singleInstructions.value.trim();
 
             if (!question || !answer) {
                 logSingleMessage('Por favor, introduce una pregunta y una respuesta.', 'error');
@@ -471,28 +486,43 @@ ${JSON.stringify(nonDuplicates, null, 2)}
             }
             
             try {
-                showLoader(true, 'Generando sugerencia...');
-                logSingleMessage('La IA está pensando en una mejor forma de explicarlo...', 'info');
+                showLoader(true, 'Generando sugerencia completa...');
+                logSingleMessage('La IA está trabajando en la pregunta, respuesta y metadatos...', 'info');
 
-                const prompt = `Eres un asistente experto en Vibe Coding para entornos educativos. Tu tarea es reformular una pregunta y una respuesta para que sean más claras, concisas y didácticas para docentes que no son expertos en programación. Evita la jerga técnica excesiva y enfócate en los conceptos pedagógicos y prácticos.
+                const existingCategories = [...new Set(faqData.flatMap(item => item.categorias || []))];
+                const existingKeywords = [...new Set(faqData.flatMap(item => item.palabras_clave || []))];
+
+                let prompt = `Eres un asistente experto en Vibe Coding para entornos educativos. Tu tarea es procesar una pregunta y respuesta, y generar una versión mejorada junto con sus metadatos.
+- Reformula la pregunta y la respuesta para que sean más claras, concisas y didácticas para docentes no expertos.
+- Genera categorías y palabras clave relevantes. Reutiliza las existentes si es posible.
+- Las categorías y palabras clave NO deben ser genéricas como "IA", "educación", "Vibe Coding".
+
+INSTRUCCIONES ADICIONALES DEL USUARIO: "${instructions || 'Ninguna'}"
 
 PREGUNTA ORIGINAL: "${question}"
 RESPUESTA ORIGINAL: "${answer}"
 
-Proporciona una versión reformulada.`;
+CATEGORÍAS EXISTENTES PARA REUTILIZAR: [${existingCategories.join(', ')}]
+PALABRAS CLAVE EXISTENTES PARA REUTILIZAR: [${existingKeywords.join(', ')}]
+`;
                 
                 const schema = {
                     type: "OBJECT",
                     properties: {
                         pregunta_sugerida: {type: "STRING"},
-                        respuesta_sugerida: {type: "STRING"}
+                        respuesta_sugerida: {type: "STRING"},
+                        categorias: { type: "ARRAY", items: { type: "STRING" } },
+                        palabras_clave: { type: "ARRAY", items: { type: "STRING" } }
                     },
-                    required: ["pregunta_sugerida", "respuesta_sugerida"]
+                    required: ["pregunta_sugerida", "respuesta_sugerida", "categorias", "palabras_clave"]
                 };
 
                 const suggestion = await callGemini(prompt, schema);
                 suggestedQuestion.value = suggestion.pregunta_sugerida;
                 suggestedAnswer.value = suggestion.respuesta_sugerida;
+                suggestedCategories.value = (suggestion.categorias || []).join(', ');
+                suggestedKeywords.value = (suggestion.palabras_clave || []).join(', ');
+                
                 suggestionContainer.classList.remove('hidden');
                 logSingleMessage('Sugerencia generada. Puedes editarla antes de añadirla.', 'success');
             } catch(error) {
@@ -503,7 +533,7 @@ Proporciona una versión reformulada.`;
         };
         
         /**
-         * Añade la pregunta individual (con su sugerencia) a la hoja de cálculo.
+         * Añade la pregunta individual (con su sugerencia editada) a la hoja de cálculo.
          */
         const handleAcceptAndAdd = async () => {
             if (isLoading || !apiKey) {
@@ -512,6 +542,8 @@ Proporciona una versión reformulada.`;
             }
             const question = suggestedQuestion.value.trim();
             const answer = suggestedAnswer.value.trim();
+            const categories = suggestedCategories.value.trim().split(',').map(c => c.trim()).filter(Boolean);
+            const keywords = suggestedKeywords.value.trim().split(',').map(k => k.trim()).filter(Boolean);
 
             if (!question || !answer) {
                 logSingleMessage('La pregunta y respuesta sugeridas no pueden estar vacías.', 'error');
@@ -535,35 +567,11 @@ Proporciona una versión reformulada.`;
                     throw new Error('Esta pregunta parece ser un duplicado de una ya existente.');
                 }
                 
-                logSingleMessage('No es un duplicado. Generando categorías y palabras clave...', 'info');
-                showLoader(true, 'Generando metadatos...');
-                
-                const existingCategories = [...new Set(faqData.flatMap(item => item.categorias || []))];
-                const existingKeywords = [...new Set(faqData.flatMap(item => item.palabras_clave || []))];
-
-                const prompt = `Eres un asistente experto en Vibe Coding educativo. Tu tarea es generar categorías y palabras clave para la siguiente pregunta y respuesta.
-- Reutiliza las categorías existentes si es posible. Las categorías existentes son: [${existingCategories.join(', ')}].
-- Reutiliza las palabras clave existentes si es posible. Las palabras clave existentes son: [${existingKeywords.join(', ')}].
-- Crea nuevas categorías o palabras clave solo si es estrictamente necesario.
-- Las categorías y palabras clave NO deben ser genéricas como "IA", "educación", "Vibe Coding", "pregunta", "respuesta". Deben ser específicas.
-
-PREGUNTA: "${question}"
-RESPUESTA: "${answer}"
-`;
-                const schema = {
-                    type: "OBJECT",
-                    properties: {
-                        categorias: { type: "ARRAY", items: { type: "STRING" } },
-                        palabras_clave: { type: "ARRAY", items: { type: "STRING" } }
-                    },
-                    required: ["categorias", "palabras_clave"]
-                };
-
-                const metadata = await callGemini(prompt, schema);
                 const finalData = [{
                     pregunta: question,
                     respuesta: answer,
-                    ...metadata
+                    categorias: categories,
+                    palabras_clave: keywords
                 }];
 
                 showLoader(true, 'Añadiendo a la FAQ...');
@@ -575,8 +583,11 @@ RESPUESTA: "${answer}"
                     // Resetear campos
                     singleQuestion.value = '';
                     singleAnswer.value = '';
+                    singleInstructions.value = '';
                     suggestedQuestion.value = '';
                     suggestedAnswer.value = '';
+                    suggestedCategories.value = '';
+                    suggestedKeywords.value = '';
                     suggestionContainer.classList.add('hidden');
                 } else {
                     throw new Error(addResponse ? addResponse.message : 'Error desconocido al añadir la pregunta.');
