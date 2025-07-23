@@ -5,11 +5,7 @@ const SHEET_ID   = '1JuiO4-mm_SJRUaERW3soThRn-LpZMy1R3x3RRuc0ArU';
 const SHEET_NAME = 'FAQ';
 
 /**
- * Columnas (sin fila de cabecera)
- * 0: Pregunta
- * 1: Respuesta
- * 2: Categorías
- * 3: Palabras clave
+ * Columnas de la hoja de cálculo
  */
 const COLS = {
   PREGUNTA: 0,
@@ -19,10 +15,11 @@ const COLS = {
 };
 
 /**
- * Gestor de peticiones OPTIONS para el pre-vuelo de CORS.
- * Permite que el navegador verifique los permisos antes de enviar la petición POST.
- * @param {object} e - El objeto de evento de la petición.
- * @returns {ContentService.TextOutput} Una respuesta con las cabeceras CORS necesarias.
+ * Gestor de peticiones OPTIONS para el "pre-flight" de CORS.
+ * El navegador envía esta petición automáticamente antes de un POST
+ * para asegurarse de que el servidor permite la comunicación.
+ * @param {object} e El objeto de evento de la petición.
+ * @returns {ContentService.TextOutput} Una respuesta con las cabeceras CORS.
  */
 function doOptions(e) {
   return ContentService.createTextOutput()
@@ -32,62 +29,76 @@ function doOptions(e) {
 }
 
 /**
- * Punto de entrada único para peticiones POST.
- * Las peticiones llegan vía fetch desde el HTML del editor.
- * @param {object} e - El objeto de evento de la petición POST.
- * @returns {ContentService.TextOutput} Una respuesta en formato JSON con cabeceras CORS.
+ * Punto de entrada para las peticiones POST desde el cliente.
+ * @param {object} e El objeto de evento de la petición POST.
+ * @returns {ContentService.TextOutput} Una respuesta JSON con las cabeceras CORS.
  */
 function doPost(e) {
-  const body   = JSON.parse(e.postData.contents || '{}');
-  const action = body.action || '';
-  
-  // Se han eliminado las acciones de gestión (update, delete).
-  const result = ({  
-    getFaqsAndFilters : getFaqsAndFilters, // Necesario para la comprobación de duplicados
-    add               : addFaq,
-    replace           : replaceFaq,
-    bulkAdd           : bulkAdd,
-    generate          : fakeGenerate, // placeholder
-    refine            : fakeGenerate, // placeholder
-  }[action] || unsupported)(body);
+  try {
+    const body   = JSON.parse(e.postData.contents || '{}');
+    const action = body.action || '';
+    
+    const result = ({  
+      getFaqsAndFilters : getFaqsAndFilters,
+      add               : addFaq,
+      replace           : replaceFaq,
+      bulkAdd           : bulkAdd,
+      generate          : fakeGenerate,
+      refine            : fakeGenerate,
+    }[action] || unsupported)(body);
 
-  // --- CORRECCIÓN AQUÍ ---
-  // Se añade la cabecera 'Access-Control-Allow-Origin' para permitir el acceso desde cualquier origen.
-  return ContentService
-         .createTextOutput(JSON.stringify(result))
-         .setMimeType(ContentService.MimeType.JSON)
-         .addHeader('Access-Control-Allow-Origin', '*');
+    // Se crea la respuesta y se añaden las cabeceras CORS
+    return createJsonResponse(result);
+
+  } catch (error) {
+    const errorResponse = { success: false, message: `Error en el servidor: ${error.message}` };
+    return createJsonResponse(errorResponse);
+  }
 }
 
 /**
+ * Crea una respuesta de texto en formato JSON y añade las cabeceras CORS.
+ * Centralizar la creación de la respuesta asegura que las cabeceras siempre estén presentes.
+ * @param {object} data El objeto a convertir en JSON.
+ * @returns {ContentService.TextOutput} El objeto de respuesta final.
+ */
+function createJsonResponse(data) {
+  return ContentService
+         .createTextOutput(JSON.stringify(data))
+         .setMimeType(ContentService.MimeType.JSON)
+         .addHeader('Access-Control-Allow-Origin', '*'); // Permite el acceso desde cualquier origen
+}
+
+
+/* ================================================================== */
+/* ================== LÓGICA DE LA APLICACIÓN ======================= */
+/* ================================================================== */
+// (El resto de tus funciones no necesitan cambios)
+
+
+/**
  * Devuelve todas las filas para la comprobación de duplicados.
- * La hoja NO tiene fila de cabecera.
  */
 function getFaqsAndFilters() {
   try {
     const sh    = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
-    const data  = sh.getDataRange().getValues();        // todas las filas
+    const data  = sh.getDataRange().getValues();
     const faqs  = [];
     data.forEach((row, i) => {
-      // Saltar filas totalmente vacías
       if (row.join('').trim() === '') return;
-
       faqs.push({
-        rowNumber     : i + 1,               // la hoja empieza en 1
+        rowNumber     : i + 1,
         Pregunta      : row[COLS.PREGUNTA]        || '',
         Respuesta     : row[COLS.RESPUESTA]       || '',
         Categorias    : row[COLS.CATEGORIAS]      || '',
         PalabrasClave : row[COLS.PALABRAS_CLAVE]  || '',
       });
     });
-    // Ya no se necesitan los filtros, solo las FAQs para la lógica de duplicados
     return { success:true, data:{ faqs }};
   } catch(err) {
     return { success:false, message:'Error en getFaqsAndFilters: ' + err };
   }
 }
-
-/* ----------------- Operaciones de Escritura -------------------- */
 
 function addFaq({ faqData }) {
   try{
@@ -135,6 +146,5 @@ function bulkAdd({ qnaArray }) {
   }
 }
 
-/* ---------- Placeholders para IA (no implementados en servidor) ----------- */
 function fakeGenerate(){ return {success:false, message:'No implementado en servidor'};}
 function unsupported(){ return {success:false, message:'Acción no soportada'};}
