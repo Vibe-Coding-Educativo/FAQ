@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FAQ de Vibe Coding para Docentes</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -22,15 +23,37 @@
         .faq-item[open] summary {
             font-weight: 600;
         }
-        .faq-item p {
-            padding-top: 0.5rem;
-            padding-bottom: 1rem;
-            padding-left: 1rem;
-            padding-right: 1rem;
+        .faq-item .answer-content {
+            padding: 0.5rem 1rem 1rem 1rem;
             line-height: 1.6;
+        }
+        .faq-item .answer-content p:first-child {
+            margin-top: 0;
+        }
+         .faq-item .answer-content p:last-child {
+            margin-bottom: 0;
         }
         .highlight {
             background-color: #fef3c7;
+        }
+        .ai-source {
+            margin-top: 1rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid #e5e7eb;
+            font-size: 0.875rem;
+        }
+        .ai-source strong {
+            color: #374151;
+        }
+        .ai-source p {
+            margin-top: 0.25rem;
+            color: #6b7280;
+        }
+        #ai-response-container p:first-child {
+            margin-top: 0;
+        }
+        #ai-response-container p:last-child {
+            margin-bottom: 0;
         }
     </style>
 </head>
@@ -94,7 +117,7 @@
     <script type="module">
         // --- CONFIGURACIÓN ---
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz3mmQ8cWOwExcbRfK8SLPrOlh8jIeybEzdLqLVZbISlJM6W14VGrVBkHxb93QLVVqUkg/exec';
-        const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+        const GEMINI_MODEL = 'gemini-1.5-flash';
 
         // --- REFERENCIAS AL DOM ---
         const loader = document.getElementById('loader');
@@ -116,6 +139,7 @@
         // --- ESTADO DE LA APLICACIÓN ---
         let apiKey = null;
         let allFaqs = [];
+        const markdownConverter = new showdown.Converter();
 
         // --- FUNCIONES DE UI ---
         const showLoader = (show, text = 'Procesando...') => {
@@ -163,16 +187,19 @@
                 }
                 summary.innerHTML = questionText;
 
+                const answerDiv = document.createElement('div');
+                answerDiv.className = 'answer-content';
+                
                 let answerText = faq.respuesta || '';
-                if(searchTerm){
-                    answerText = answerText.replace(new RegExp(searchTerm, 'gi'), match => `<span class="highlight">${match}</span>`);
-                }
+                let answerHtml = markdownConverter.makeHtml(answerText);
 
-                const answerP = document.createElement('p');
-                answerP.innerHTML = answerText;
+                if(searchTerm){
+                     answerHtml = answerHtml.replace(new RegExp(searchTerm, 'gi'), match => `<span class="highlight">${match}</span>`);
+                }
+                answerDiv.innerHTML = answerHtml;
                 
                 details.appendChild(summary);
-                details.appendChild(answerP);
+                details.appendChild(answerDiv);
                 faqContainer.appendChild(details);
             });
         };
@@ -233,11 +260,18 @@
         };
         
         // --- COMUNICACIÓN CON LA API DE GEMINI ---
-        const callGemini = async (prompt) => {
+        const callGemini = async (prompt, jsonSchema = null) => {
             if (!apiKey) throw new Error("API Key de Gemini no disponible.");
             
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
             const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+
+            if (jsonSchema) {
+                payload.generationConfig = {
+                    responseMimeType: "application/json",
+                    responseSchema: jsonSchema
+                };
+            }
 
             try {
                 const response = await fetch(apiUrl, {
@@ -247,7 +281,7 @@
                 });
                 const result = await response.json();
                 if (result.candidates && result.candidates.length > 0) {
-                    return result.candidates[0].content.parts[0].text;
+                    return jsonSchema ? JSON.parse(result.candidates[0].content.parts[0].text) : result.candidates[0].content.parts[0].text;
                 }
                 throw new Error("Respuesta inesperada de la API de Gemini.");
             } catch (error) {
@@ -267,9 +301,10 @@
             aiResponseContainer.innerHTML = '<p>Pensando...</p>';
             aiAskBtn.disabled = true;
 
-            const faqContext = allFaqs.map(faq => `Pregunta: ${faq.pregunta}\nRespuesta: ${faq.respuesta}`).join('\n\n---\n\n');
+            const faqContext = allFaqs.map(faq => `ID: ${faq.pregunta}\nContenido: ${faq.respuesta}`).join('\n\n---\n\n');
 
-            const prompt = `Eres un asistente experto en Vibe Coding educativo. Responde a la pregunta del usuario basándote *únicamente* en la siguiente base de conocimientos (FAQ). No inventes información. Si la respuesta no se encuentra en la FAQ, responde amablemente que no tienes esa información en tu base de conocimientos. Después de tu respuesta, cita la pregunta exacta de la FAQ que has usado como fuente principal, bajo el título 'Fuente:'. Si has usado varias, cita la más relevante.
+            const prompt = `Eres un asistente experto en Vibe Coding educativo. Responde a la pregunta del usuario basándote *únicamente* en la siguiente base de conocimientos (FAQ). No inventes información. Si la respuesta no se encuentra en la FAQ, responde amablemente que no tienes esa información.
+Tu respuesta debe estar en dos partes: primero la respuesta directa a la pregunta del usuario, y segundo, una lista de las preguntas exactas de la FAQ que has usado como fuentes.
 
 --- BASE DE CONOCIMIENTOS (FAQ) ---
 ${faqContext}
@@ -277,10 +312,35 @@ ${faqContext}
 
 PREGUNTA DEL USUARIO: "${userQuestion}"
 `;
+            const schema = {
+                type: "OBJECT",
+                properties: {
+                    respuesta: { type: "STRING" },
+                    fuentes: { 
+                        type: "ARRAY",
+                        items: { type: "STRING" }
+                    }
+                },
+                required: ["respuesta", "fuentes"]
+            };
+
 
             try {
-                const response = await callGemini(prompt);
-                aiResponseContainer.innerHTML = response.replace(/\n/g, '<br>');
+                const response = await callGemini(prompt, schema);
+                
+                let answerHtml = markdownConverter.makeHtml(response.respuesta);
+                let htmlResponse = answerHtml;
+                
+                if (response.fuentes && response.fuentes.length > 0) {
+                    htmlResponse += '<div class="ai-source">';
+                    htmlResponse += `<strong>Fuentes consultadas:</strong>`;
+                    response.fuentes.forEach(source => {
+                        htmlResponse += `<p>- ${source}</p>`;
+                    });
+                    htmlResponse += '</div>';
+                }
+
+                aiResponseContainer.innerHTML = htmlResponse;
             } catch (error) {
                 aiResponseContainer.innerHTML = `<p class="text-red-600">Hubo un error al contactar a la IA: ${error.message}</p>`;
             } finally {
@@ -297,7 +357,6 @@ PREGUNTA DEL USUARIO: "${userQuestion}"
                         allFaqs = dataResponse.data;
                         renderFaqs(allFaqs);
                         populateCategories();
-                        // Obtener la API key en segundo plano para el chat
                         fetchFromGoogleScript('getApiKey').then(keyResponse => {
                             if (keyResponse && keyResponse.status === 'success') {
                                 apiKey = keyResponse.apiKey;
