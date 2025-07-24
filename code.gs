@@ -1,16 +1,19 @@
 /**
  * @OnlyCurrentDoc
  * Backend y servidor web para la aplicación de gestión de FAQ.
- * Versión final con todas las funciones para el editor avanzado.
  */
 
 // --- CONSTANTES GLOBALES ---
 const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1JuiO4-mm_SJRUaERW3soThRn-LpZMy1R3x3RRuc0ArU/edit';
 const SHEET_NAME = 'FAQ';
 
-/**
- * Maneja todas las peticiones POST desde las aplicaciones web.
- */
+// --- FUNCIONES DE UTILIDAD ---
+const norm = s => s.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().replace(/\s+/g, '_');
+const splitList = v => v ? v.toString().split(/[;,|]/).map(x => x.trim()).filter(Boolean) : [];
+const toCsvString = v => Array.isArray(v) ? v.join(', ') : (v || '');
+
+
+// --- GESTOR DE PETICIONES ---
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
@@ -26,6 +29,7 @@ function doPost(e) {
       case 'addData':
         response = addData(body.data);
         break;
+      // --- ACCIONES AÑADIDAS ---
       case 'updateData':
         response = updateData(body.data);
         break;
@@ -35,6 +39,7 @@ function doPost(e) {
       case 'manageCategories':
         response = manageCategories(body.data);
         break;
+      // --- FIN DE ACCIONES AÑADIDAS ---
       default:
         response = { status: 'error', message: 'Acción no reconocida' };
     }
@@ -42,7 +47,6 @@ function doPost(e) {
     return ContentService
       .createTextOutput(JSON.stringify(response))
       .setMimeType(ContentService.MimeType.JSON);
-
   } catch (error) {
     Logger.log(error.toString());
     const errorResponse = { status: 'error', message: error.toString() };
@@ -52,15 +56,12 @@ function doPost(e) {
   }
 }
 
-/**
- * Obtiene la API Key de las propiedades del script.
- */
+// --- FUNCIONES DE ACCESO A DATOS (API) ---
+
 function getApiKey() {
   try {
     const apiKey = PropertiesService.getScriptProperties().getProperty('API_KEY');
-    if (!apiKey) {
-      throw new Error('La propiedad "API_KEY" no está configurada en las propiedades del script.');
-    }
+    if (!apiKey) throw new Error('La propiedad "API_KEY" no está configurada.');
     return { status: 'success', apiKey: apiKey };
   } catch (error) {
     Logger.log(error.toString());
@@ -68,93 +69,67 @@ function getApiKey() {
   }
 }
 
-/**
- * Obtiene todos los datos de la FAQ.
- * VERSIÓN DEFINITIVA: Robusta, no depende del orden de las columnas y es inmune a los acentos.
- */
 function getData() {
   try {
     const sheet = SpreadsheetApp.openByUrl(SPREADSHEET_URL).getSheetByName(SHEET_NAME);
-    if (!sheet) {
-      return { status: 'success', data: [] };
-    }
+    if (!sheet) return { status: 'success', data: [] };
+    
     const range = sheet.getDataRange();
     const values = range.getValues();
-    if (values.length < 2) {
-      return { status: 'success', data: [] };
-    }
+    if (values.length < 1) return { status: 'success', data: [] };
 
-    const headerRow = values.shift();
-    
-    const headerMap = {};
-    headerRow.forEach((header, index) => {
-      const normalizedHeader = header.toString()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Elimina acentos
-        .toLowerCase()
-        .trim()
-        .replace(/\s/g, '_');
-      
-      if (normalizedHeader) {
-        headerMap[normalizedHeader] = index;
-      }
-    });
+    const headers = values.shift();
+    const headerIdx = {};
+    headers.forEach((h, i) => headerIdx[norm(h)] = i);
+
+    if (!('pregunta' in headerIdx)) {
+        return { status: 'success', data: [] }; // Si no hay pregunta, probablemente está vacía
+    }
     
     const data = values.map((row, index) => {
-      const obj = {
-        rowIndex: index + 2
+      const getCell = key => {
+        const idx = headerIdx[key];
+        return idx != null ? row[idx] : '';
       };
       
-      const preguntaIndex = headerMap['pregunta'];
-      const respuestaIndex = headerMap['respuesta'];
-      const categoriasIndex = headerMap['categorias'];
-      const palabrasClaveIndex = headerMap['palabras_clave'];
-
-      obj.pregunta = (preguntaIndex !== undefined) ? row[preguntaIndex] || '' : '';
-      obj.respuesta = (respuestaIndex !== undefined) ? row[respuestaIndex] || '' : '';
-      
-      const categoriasRaw = (categoriasIndex !== undefined) ? row[categoriasIndex] || '' : '';
-      obj.categorias = categoriasRaw ? categoriasRaw.toString().split(',').map(item => item.trim()).filter(Boolean) : [];
-      
-      const palabrasClaveRaw = (palabrasClaveIndex !== undefined) ? row[palabrasClaveIndex] || '' : '';
-      obj.palabras_clave = palabrasClaveRaw ? palabrasClaveRaw.toString().split(',').map(item => item.trim()).filter(Boolean) : [];
-
-      if (obj.pregunta || obj.respuesta) {
-        return obj;
-      }
-      return null;
-    }).filter(Boolean);
-
+      const categoriasValue = getCell('categorias') || getCell('categorías');
+      return {
+        rowIndex: index + 2, // El índice real en la hoja (2 porque la cabecera es la 1)
+        pregunta: getCell('pregunta'),
+        respuesta: getCell('respuesta'),
+        categorías: splitList(categoriasValue),
+        palabras_clave: splitList(getCell('palabras_clave'))
+      };
+    });
+    
     return { status: 'success', data: data };
   } catch (error) {
-    Logger.log(`Error en getData: ${error.toString()}`);
-    return { status: 'error', message: `Error inesperado al leer la hoja: ${error.toString()}` };
+    Logger.log(error.toString());
+    return { status: 'error', message: `Error al leer la hoja: ${error.toString()}` };
   }
 }
 
-/**
- * Añade nuevas filas de datos a la hoja de cálculo.
- */
 function addData(data) {
   try {
     const sheet = SpreadsheetApp.openByUrl(SPREADSHEET_URL).getSheetByName(SHEET_NAME);
-     if (!sheet) {
-      throw new Error(`La hoja con el nombre "${SHEET_NAME}" no se encuentra.`);
-    }
-    
+    if (!sheet) throw new Error(`La hoja "${SHEET_NAME}" no se encuentra.`);
+
+    let headers;
     if (sheet.getLastRow() === 0) {
-        sheet.appendRow(['Pregunta', 'Respuesta', 'Categorias', 'Palabras_clave']);
+        headers = ['Pregunta', 'Respuesta', 'Categorías', 'Palabras clave'];
+        sheet.appendRow(headers);
+    } else {
+        headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     }
 
     const rowsToAdd = data.map(item => {
-      const categoriasStr = Array.isArray(item.categorias) ? item.categorias.join(', ') : '';
-      const palabrasClaveStr = Array.isArray(item.palabras_clave) ? item.palabras_clave.join(', ') : '';
-      
-      return [
-        item.pregunta || '',
-        item.respuesta || '',
-        categoriasStr,
-        palabrasClaveStr
-      ];
+      const rowData = {};
+      rowData['pregunta'] = item.pregunta || '';
+      rowData['respuesta'] = item.respuesta || '';
+      rowData['categorias'] = toCsvString(item.categorías || item.categorias);
+      rowData['categorías'] = rowData['categorias'];
+      rowData['palabras_clave'] = toCsvString(item.palabras_clave);
+      return headers.map(header => rowData[norm(header)] || '');
     });
 
     if (rowsToAdd.length > 0) {
@@ -164,118 +139,105 @@ function addData(data) {
     return { status: 'success', message: `${rowsToAdd.length} fila(s) añadida(s) con éxito.` };
   } catch (error) {
     Logger.log(error.toString());
-    return { status: 'error', message: `Error al escribir en la hoja de cálculo: ${error.toString()}` };
+    return { status: 'error', message: `Error al escribir en la hoja: ${error.toString()}` };
   }
 }
 
-/**
- * Actualiza una fila específica en la hoja de cálculo.
- */
-function updateData(payload) {
-  const { rowIndex, rowData } = payload;
-  if (!rowIndex || !rowData) {
-    return { status: 'error', message: 'Faltan datos (rowIndex o rowData) para la actualización.' };
-  }
+// --- NUEVA FUNCIÓN ---
+function updateData(data) {
   try {
+    const { rowIndex, rowData } = data;
+    if (!rowIndex || !rowData) throw new Error('Faltan rowIndex o rowData para actualizar.');
+    
     const sheet = SpreadsheetApp.openByUrl(SPREADSHEET_URL).getSheetByName(SHEET_NAME);
-    const range = sheet.getRange(rowIndex, 1, 1, 4); 
+    if (!sheet) throw new Error(`La hoja "${SHEET_NAME}" no se encuentra.`);
+
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     
-    const categoriasStr = Array.isArray(rowData.categorias) ? rowData.categorias.join(', ') : '';
-    const palabrasClaveStr = Array.isArray(rowData.palabras_clave) ? rowData.palabras_clave.join(', ') : '';
-
-    range.setValues([[
-      rowData.pregunta,
-      rowData.respuesta,
-      categoriasStr,
-      palabrasClaveStr
-    ]]);
-
-    return { status: 'success', message: `Fila ${rowIndex} actualizada.` };
-  } catch (error) {
-    Logger.log(`Error al actualizar fila ${rowIndex}: ${error.toString()}`);
-    return { status: 'error', message: `Error al actualizar: ${error.toString()}` };
-  }
-}
-
-/**
- * Elimina una fila específica de la hoja de cálculo.
- */
-function deleteData(payload) {
-  const { rowIndex } = payload;
-  if (!rowIndex) {
-    return { status: 'error', message: 'Falta el índice de la fila (rowIndex) para eliminar.' };
-  }
-  try {
-    const sheet = SpreadsheetApp.openByUrl(SPREADSHEET_URL).getSheetByName(SHEET_NAME);
-    sheet.deleteRow(rowIndex);
-    return { status: 'success', message: `Fila ${rowIndex} eliminada.` };
-  } catch (error) {
-    Logger.log(`Error al eliminar fila ${rowIndex}: ${error.toString()}`);
-    return { status: 'error', message: `Error al eliminar: ${error.toString()}` };
-  }
-}
-
-/**
- * Gestiona operaciones de categorías (renombrar, eliminar) en toda la hoja.
- */
-function manageCategories(payload) {
-  const { operation, oldName, newName, name } = payload;
-  
-  if (!operation || !(oldName || name)) {
-    return { status: 'error', message: 'Operación o nombre de categoría no especificado.' };
-  }
-
-  try {
-    const sheet = SpreadsheetApp.openByUrl(SPREADSHEET_URL).getSheetByName(SHEET_NAME);
-    const range = sheet.getDataRange();
-    const values = range.getValues();
-    
-    const headers = values[0].map(h => h.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s/g, '_'));
-    const catIndex = headers.indexOf('categorias');
-    
-    if (catIndex === -1) {
-      throw new Error('No se encontró la columna "Categorias" en la hoja.');
-    }
-
-    let modifiedCount = 0;
-    
-    for (let i = 1; i < values.length; i++) {
-      const row = values[i];
-      let categoriesStr = row[catIndex] || '';
-      if (!categoriesStr) continue;
-
-      let categoriesArr = categoriesStr.split(',').map(c => c.trim()).filter(Boolean);
-      let originalLength = categoriesArr.length;
-      let needsUpdate = false;
-
-      if (operation === 'rename') {
-        const indexToRename = categoriesArr.indexOf(oldName);
-        if (indexToRename !== -1) {
-          categoriesArr[indexToRename] = newName.trim();
-          needsUpdate = true;
+    const newRow = headers.map(header => {
+        const key = norm(header);
+        switch(key) {
+            case 'pregunta':       return rowData.pregunta || '';
+            case 'respuesta':      return rowData.respuesta || '';
+            case 'categorias':
+            case 'categorías':     return toCsvString(rowData.categorías || rowData.categorias);
+            case 'palabras_clave': return toCsvString(rowData.palabras_clave);
+            default:               return rowData[key] || '';
         }
-      } else if (operation === 'delete') {
-        categoriesArr = categoriesArr.filter(c => c !== name);
-        if (categoriesArr.length < originalLength) {
-          needsUpdate = true;
-        }
-      }
-      
-      if (needsUpdate) {
-        values[i][catIndex] = categoriesArr.join(', ');
-        modifiedCount++;
-      }
-    }
-    
-    if (modifiedCount > 0) {
-      range.setValues(values);
-      return { status: 'success', message: `Operación completada. Se actualizaron ${modifiedCount} registros.` };
-    } else {
-      return { status: 'success', message: 'Operación completada. No se encontraron registros que modificar.' };
-    }
+    });
 
+    sheet.getRange(parseInt(rowIndex), 1, 1, newRow.length).setValues([newRow]);
+    
+    return { status: 'success', message: 'Fila actualizada correctamente.' };
   } catch (error) {
-    Logger.log(`Error en manageCategories: ${error.toString()}`);
-    return { status: 'error', message: `Error al gestionar categorías: ${error.toString()}` };
+    Logger.log(`Error en updateData: ${error.toString()}`);
+    return { status: 'error', message: `Error al actualizar la fila: ${error.toString()}` };
   }
+}
+
+// --- NUEVA FUNCIÓN ---
+function deleteData(data) {
+  try {
+    const { rowIndex } = data;
+    if (!rowIndex) throw new Error('Falta rowIndex para eliminar la fila.');
+    
+    const sheet = SpreadsheetApp.openByUrl(SPREADSHEET_URL).getSheetByName(SHEET_NAME);
+    if (!sheet) throw new Error(`La hoja "${SHEET_NAME}" no se encuentra.`);
+
+    sheet.deleteRow(parseInt(rowIndex));
+
+    return { status: 'success', message: 'Fila eliminada correctamente.' };
+  } catch (error) {
+    Logger.log(`Error en deleteData: ${error.toString()}`);
+    return { status: 'error', message: `Error al eliminar la fila: ${error.toString()}` };
+  }
+}
+
+// --- NUEVA FUNCIÓN ---
+function manageCategories(data) {
+    try {
+        const { operation, oldName, newName, name } = data;
+        const sheet = SpreadsheetApp.openByUrl(SPREADSHEET_URL).getSheetByName(SHEET_NAME);
+        if (!sheet) throw new Error(`La hoja "${SHEET_NAME}" no se encuentra.`);
+
+        const range = sheet.getDataRange();
+        const values = range.getValues();
+        if (values.length < 2) return { status: 'success', message: 'No hay datos para modificar.' };
+        
+        const headers = values.shift();
+        const headerIdx = {};
+        headers.forEach((h, i) => headerIdx[norm(h)] = i);
+
+        const catIdx = headerIdx['categorias'] ?? headerIdx['categorías'];
+        if (catIdx == null) throw new Error('No se encuentra la columna de categorías.');
+
+        let modifiedCount = 0;
+        const newValues = values.map(row => {
+            let categories = splitList(row[catIdx]);
+            let hasChanged = false;
+
+            if (operation === 'rename' && oldName && newName && categories.includes(oldName)) {
+                categories = categories.map(c => c === oldName ? newName : c);
+                hasChanged = true;
+            } else if (operation === 'delete' && name && categories.includes(name)) {
+                categories = categories.filter(c => c !== name);
+                hasChanged = true;
+            }
+
+            if (hasChanged) {
+                row[catIdx] = toCsvString(categories);
+                modifiedCount++;
+            }
+            return row;
+        });
+
+        if (modifiedCount > 0) {
+            sheet.getRange(2, 1, newValues.length, newValues[0].length).setValues(newValues);
+        }
+
+        return { status: 'success', message: `Operación '${operation}' completada. ${modifiedCount} fila(s) afectada(s).` };
+    } catch (error) {
+        Logger.log(`Error en manageCategories: ${error.toString()}`);
+        return { status: 'error', message: `Error al gestionar categorías: ${error.toString()}` };
+    }
 }
