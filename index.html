@@ -109,7 +109,7 @@
 
     // ===  APP ===
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz3mmQ8cWOwExcbRfK8SLPrOlh8jIeybEzdLqLVZbISlJM6W14VGrVBkHxb93QLVVqUkg/exec';
-    const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+    const GEMINI_MODEL = 'gemini-1.5-flash';
 
     const loader = document.getElementById('loader');
     const loaderText = document.getElementById('loader-text');
@@ -127,6 +127,14 @@
     let apiKey = null;
     let allFaqs = [];
     const md = new showdown.Converter();
+
+    // === BLOQUE NUEVO: HELPERS UNIVERSALES ===
+    const normList = v =>
+      Array.isArray(v) ? v : (v || '').split(/[;,|]/).map(s => s.trim()).filter(Boolean);
+
+    const getCats = f => normList(f.categorías ?? f.categorias ?? f.Categorias);
+    const getKws  = f => normList(f.palabras_clave ?? f.palabrasClave ?? f.Palabras_clave);
+    // === FIN DEL BLOQUE NUEVO ===
 
     const showLoader = (on, text = 'Procesando...') => {
       loaderText.textContent = text;
@@ -218,9 +226,10 @@
       });
     };
 
+    // === FUNCIÓN REESCRITA ===
     const populateCats = () => {
       const set = new Set();
-      allFaqs.forEach(f => (f.categorías || []).forEach(c => set.add(c)));
+      allFaqs.forEach(f => getCats(f).forEach(c => set.add(c)));
       category.innerHTML = '<option value="all">Todas las categorías</option>';
       [...set].sort().forEach(c => {
         const opt = document.createElement('option');
@@ -230,17 +239,21 @@
       });
     };
 
+    // === FUNCIÓN REESCRITA ===
     const filter = () => {
       let arr = allFaqs;
-      const cat = category.value;
+      const cat  = category.value;
       const term = search.value.toLowerCase();
-      if (cat !== 'all') arr = arr.filter(f => (f.categorías || []).includes(cat));
+
+      if (cat !== 'all') arr = arr.filter(f => getCats(f).includes(cat));
+
       if (term) arr = arr.filter(f =>
-        (f.pregunta || '').toLowerCase().includes(term) ||
+        (f.pregunta  || '').toLowerCase().includes(term) ||
         (f.respuesta || '').toLowerCase().includes(term) ||
-        (f.categorías || []).join(' ').toLowerCase().includes(term) ||
-        (f.palabras_clave || []).join(' ').toLowerCase().includes(term)
+        getCats(f).join(' ').toLowerCase().includes(term) ||
+        getKws(f).join(' ').toLowerCase().includes(term)
       );
+
       renderFaqs(arr);
     };
 
@@ -290,10 +303,9 @@ PREGUNTA DEL USUARIO: "${q}"
         try {
             const r = await callGemini(prompt, schema);
             
-            // Si no hay fuentes, muestra un mensaje y termina.
             if (!r.fuentes || r.fuentes.length === 0) {
                 aiOut.innerHTML = `<p>No he encontrado una respuesta en la base de conocimientos para tu pregunta. Prueba a reformularla con otras palabras.</p>`;
-                return; // Finaliza la ejecución aquí
+                return;
             }
 
             const div = document.createElement('div');
@@ -339,7 +351,19 @@ PREGUNTA DEL USUARIO: "${q}"
       fetchScript('getData')
         .then(d => {
           if (d?.status === 'success') {
-            allFaqs = d.data;
+            // === BLOQUE MODIFICADO: NORMALIZAR DATOS AL RECIBIRLOS ===
+            allFaqs = d.data.map(f => {
+              const cats = getCats(f);
+              const kws  = getKws(f);
+              return {
+                ...f,
+                categorías: cats,   // con tilde
+                categorias: cats,   // sin tilde, para compatibilidad
+                palabras_clave: kws
+              };
+            });
+            // === FIN DEL BLOQUE MODIFICADO ===
+
             renderFaqs(allFaqs);
             populateCats();
             handleUrlHash();
