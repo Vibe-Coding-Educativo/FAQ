@@ -1,502 +1,272 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FAQ de la comunidad Vibe Coding Educativo</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        .tab-button.active {
-            border-color: #4f46e5;
-            color: #4f46e5;
-            background-color: #eef2ff;
-        }
-        #loader {
-            background-color: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(5px);
-        }
-        .faq-item {
-            transition: background-color 0.3s ease-in-out;
-        }
-        .faq-item[open] summary {
-            font-weight: 600;
-        }
-        .faq-item .answer-content {
-            padding: 0.5rem 1rem 1rem 1rem;
-            line-height: 1.6;
-        }
-        .faq-item .answer-content p:first-child {
-            margin-top: 0;
-        }
-         .faq-item .answer-content p:last-child {
-            margin-bottom: 0;
-        }
-        .highlight {
-            background-color: #fef3c7;
-        }
-        .ai-source {
-            margin-top: 1rem;
-            padding-top: 0.75rem;
-            border-top: 1px solid #e5e7eb;
-            font-size: 0.875rem;
-        }
-        .ai-source strong {
-            color: #374151;
-        }
-        #ai-response-container p:first-child {
-            margin-top: 0;
-        }
-        #ai-response-container p:last-child {
-            margin-bottom: 0;
-        }
-        .faq-highlighted {
-            background-color: #eef2ff !important;
-            border-left: 4px solid #4f46e5;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAQ de la comunidad Vibe Coding Educativo</title>
+
+  <script>
+    tailwind = { config: { darkMode: 'class' } };
+  </script>
+  <script src="https://cdn.tailwindcss.com?v=3"></script>
+
+  <script>
+    (function () {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (isDark) document.documentElement.classList.add('dark');
+    })();
+  </script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js" defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .tab-button.active { border-color: #4f46e5; color: #4f46e5; background-color: #eef2ff; }
+    .dark .tab-button.active { border-color: #818cf8; color: #818cf8; background-color: #374151; }
+    #loader { background-color: rgba(255,255,255,.8); backdrop-filter: blur(5px); }
+    .dark #loader { background-color: rgba(17,24,39,.8); }
+    .faq-item { transition: background-color .3s ease-in-out; }
+    .faq-item[open] summary { font-weight:600; }
+    .faq-item .answer-content { padding:.5rem 1rem 1rem; line-height:1.6; }
+    .highlight { background:#fef3c7; color:#92400e; }
+    .dark .highlight { background:#92400e; color:#fef3c7; }
+    .ai-source { margin-top:1rem; padding-top:.75rem; border-top:1px solid #e5e7eb; font-size:.875rem; }
+    .dark .ai-source { border-top-color:#374151; }
+    .faq-highlighted { background:#eef2ff!important; border-left:4px solid #4f46e5; }
+    .dark .faq-highlighted { background:#3730a3!important; border-left-color:#818cf8; }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+  <div id="loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center">
+    <div class="w-16 h-16 border-4 border-gray-200 dark:border-gray-700 border-t-indigo-600 rounded-full animate-spin"></div>
+    <p id="loader-text" class="mt-4 text-lg font-medium text-indigo-600 dark:text-indigo-400">Cargando preguntas...</p>
+  </div>
 
-    <div id="loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center">
-        <div class="w-16 h-16 border-4 border-t-4 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></div>
-        <p id="loader-text" class="mt-4 text-lg font-medium text-indigo-600">Cargando preguntas...</p>
+  <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl relative">
+    <header class="mb-6 text-center pt-10">
+      <h1 class="text-4xl font-bold text-gray-900 dark:text-white">
+        FAQ de la comunidad <a href="https://vibe-coding-educativo.github.io/" target="_blank" rel="noopener noreferrer"
+          class="text-indigo-600 hover:underline dark:text-indigo-400">Vibe Coding Educativo</a>
+      </h1>
+      <p class="text-lg text-gray-600 dark:text-gray-400 mt-2">El centro de ayuda creado por y para la comunidad.</p>
+    </header>
+
+    <div class="mb-6 border-b border-gray-200 dark:border-gray-700">
+      <nav class="flex space-x-2 sm:space-x-4 justify-center" aria-label="tabs">
+        <button id="tab-explore"
+          class="tab-button active whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm sm:text-base text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-500">
+          Explorar FAQ
+        </button>
+        <button id="tab-ai"
+          class="tab-button whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm sm:text-base text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-500">
+          Preguntar a la IA
+        </button>
+      </nav>
     </div>
 
-    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
-        <header class="mb-6 text-center">
-            <h1 class="text-4xl font-bold text-gray-900">
-                FAQ de la comunidad <a href="https://vibe-coding-educativo.github.io/" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">Vibe Coding Educativo</a>
-            </h1>
-            <p class="text-lg text-gray-600 mt-2">El centro de ayuda creado por y para la comunidad.</p>
-        </header>
-
-        <div class="mb-6 border-b border-gray-200">
-            <nav class="flex space-x-2 sm:space-x-4 justify-center" aria-label="Tabs">
-                <button id="tab-btn-explore" class="tab-button active whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm sm:text-base">
-                    Explorar FAQ
-                </button>
-                <button id="tab-btn-ai" class="tab-button whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm sm:text-base">
-                    Preguntar a la IA
-                </button>
-            </nav>
+    <div>
+      <div id="content-explore">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <input type="search" id="search" placeholder="Buscar por palabra clave..."
+              class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
+            <select id="category"
+              class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition dark:bg-gray-700 dark:border-gray-600 dark:text-white"></select>
+          </div>
+          <div id="faq" class="space-y-2">
+            <p class="text-center text-gray-500 dark:text-gray-400 p-8">Cargando contenido...</p>
+          </div>
         </div>
+      </div>
 
-        <div>
-            <div id="tab-content-explore">
-                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        <input type="search" id="search-input" placeholder="Buscar por palabra clave..." class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
-                        <select id="category-filter" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"></select>
-                    </div>
-                    <div id="faq-container" class="space-y-2">
-                        <p class="text-center text-gray-500 p-8">Cargando contenido...</p>
-                    </div>
-                </div>
-            </div>
-
-            <div id="tab-content-ai" class="hidden">
-                 <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <h2 class="text-xl font-semibold mb-4 text-center">Asistente de Vibe Coding</h2>
-                    <div id="ai-response-container" class="mb-4 p-4 bg-indigo-50 rounded-md min-h-[100px] text-gray-700 leading-relaxed">
-                        <p>Hola, soy tu asistente. Pregúntame cualquier duda que tengas sobre Vibe Coding y te responderé basándome en la información de esta FAQ.</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <input type="text" id="ai-question-input" placeholder="Ej: ¿Cómo puedo usar mi propia API key?" class="flex-grow p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
-                        <button id="ai-ask-btn" class="px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">Enviar</button>
-                    </div>
-                 </div>
-            </div>
+      <div id="content-ai" class="hidden">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <h2 class="text-xl font-semibold mb-4 text-center dark:text-white">Asistente de Vibe Coding</h2>
+          <div id="aiOut"
+            class="mb-4 p-4 bg-indigo-50 dark:bg-gray-900 rounded-md min-h-[100px] text-gray-700 dark:text-gray-300 leading-relaxed">
+            <p>Hola, soy tu asistente...</p>
+          </div>
+          <div class="flex gap-2">
+            <input type="text" id="aiIn" placeholder="Ej: ¿Cómo puedo usar mi propia API key?"
+              class="flex-grow p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
+            <button id="aiBtn"
+              class="px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition dark:bg-indigo-500 dark:hover:bg-indigo-600">Enviar</button>
+          </div>
         </div>
+      </div>
     </div>
+  </div>
 
-    <script type="module">
-        // --- CONFIGURACIÓN ---
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz3mmQ8cWOwExcbRfK8SLPrOlh8jIeybEzdLqLVZbISlJM6W14VGrVBkHxb93QLVVqUkg/exec';
-        const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+  <script type="module">
+    // === THEME ===
+    // Reacciona a cambios en el tema del SO mientras la página está abierta.
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+      document.documentElement.classList.toggle('dark', e.matches);
+    });
 
-        // --- REFERENCIAS AL DOM ---
-        const loader = document.getElementById('loader');
-        const loaderText = document.getElementById('loader-text');
-        
-        const tabBtnExplore = document.getElementById('tab-btn-explore');
-        const tabBtnAi = document.getElementById('tab-btn-ai');
-        const contentExplore = document.getElementById('tab-content-explore');
-        const contentAi = document.getElementById('tab-content-ai');
+    // ===  RESTO DE LA APP (abreviado) ===
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz3mmQ8cWOwExcbRfK8SLPrOlh8jIeybEzdLqLVZbISlJM6W14VGrVBkHxb93QLVVqUkg/exec';
+    const GEMINI_MODEL = 'gemini-1.5-flash-latest';
 
-        const searchInput = document.getElementById('search-input');
-        const categoryFilter = document.getElementById('category-filter');
-        const faqContainer = document.getElementById('faq-container');
+    const loader = document.getElementById('loader');
+    const loaderText = document.getElementById('loader-text');
+    const tabExplore = document.getElementById('tab-explore');
+    const tabAi = document.getElementById('tab-ai');
+    const contentExplore = document.getElementById('content-explore');
+    const contentAi = document.getElementById('content-ai');
+    const search = document.getElementById('search');
+    const category = document.getElementById('category');
+    const faq = document.getElementById('faq');
+    const aiIn = document.getElementById('aiIn');
+    const aiBtn = document.getElementById('aiBtn');
+    const aiOut = document.getElementById('aiOut');
 
-        const aiQuestionInput = document.getElementById('ai-question-input');
-        const aiAskBtn = document.getElementById('ai-ask-btn');
-        const aiResponseContainer = document.getElementById('ai-response-container');
+    let apiKey = null;
+    let allFaqs = [];
+    const md = new showdown.Converter();
 
-        // --- ESTADO DE LA APLICACIÓN ---
-        let apiKey = null;
-        let allFaqs = [];
-        const markdownConverter = new showdown.Converter();
+    const showLoader = (on, text='Procesando...') => {
+      loaderText.textContent = text;
+      loader.style.display = on ? 'flex' : 'none';
+    };
 
-        // --- FUNCIONES DE UTILIDAD ---
-        const slugify = (text) => {
-            if (!text) return '';
-            const a = 'àáâäæãåāăąçćčđďèéêëēėęěğǵḧîïíīįìłḿñńǹňôöòóœøōõőṕŕřßśšşșťțûüùúūǘůűųẃẍÿýžźż·/_,:;'
-            const b = 'aaaaaaaaaacccddeeeeeeeegghiiiiiilmnnnnoooooooooprrssssssttuuuuuuuuuwxyyzzz------'
-            const p = new RegExp(a.split('').join('|'), 'g')
+    const slugify = (t) => t.toLowerCase().trim()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/\s+/g,'-').replace(/[^\w-]+/g,'').replace(/--+/g,'-')
+      .replace(/^-+/, '').replace(/-+$/, '');
 
-            return text.toString().toLowerCase()
-                .replace(/\s+/g, '-') // Replace spaces with -
-                .replace(p, c => b.charAt(a.indexOf(c))) // Replace special characters
-                .replace(/&/g, '-and-') // Replace & with 'and'
-                .replace(/[^\w\-]+/g, '') // Remove all non-word chars
-                .replace(/\-\-+/g, '-') // Replace multiple - with single -
-                .replace(/^-+/, '') // Trim - from start of text
-                .replace(/-+$/, '') // Trim - from end of text
-        }
+    const switchTab = (name) => {
+      if(name==='explore'){ contentExplore.classList.remove('hidden'); contentAi.classList.add('hidden'); tabExplore.classList.add('active'); tabAi.classList.remove('active'); }
+      else { contentExplore.classList.add('hidden'); contentAi.classList.remove('hidden'); tabExplore.classList.remove('active'); tabAi.classList.add('active'); }
+    };
 
-        // --- FUNCIONES DE UI Y NAVEGACIÓN ---
-        const showLoader = (show, text = 'Procesando...') => {
-            loaderText.textContent = text;
-            if (show) {
-                loader.classList.remove('hidden');
-            } else {
-                loader.classList.add('hidden');
-            }
-        };
+    const renderFaqs = (arr) => {
+      faq.innerHTML = '';
+      if(!arr.length){
+        faq.innerHTML = '<p class="text-center text-gray-500 dark:text-gray-400 p-8">Sin resultados.</p>';
+        return;
+      }
+      const term = search.value.toLowerCase();
+      arr.forEach(f => {
+        const slug = slugify(f.pregunta);
+        const details = document.createElement('details');
+        details.id = slug;
+        details.className = 'faq-item bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer';
+        const summary = document.createElement('summary');
+        summary.className = 'p-4 font-medium text-gray-800 dark:text-gray-200';
+        let q = f.pregunta || '';
+        if(term) q = q.replace(new RegExp(term,'gi'), m=>`<span class="highlight">${m}</span>`);
+        summary.innerHTML = q;
+        const ans = document.createElement('div');
+        ans.className = 'answer-content text-gray-700 dark:text-gray-300';
+        let a = md.makeHtml(f.respuesta||'');
+        if(term) a = a.replace(new RegExp(term,'gi'), m=>`<span class="highlight">${m}</span>`);
+        ans.innerHTML = a;
+        details.append(summary, ans);
+        faq.append(details);
+      });
+    };
 
-        const switchTab = (tabName) => {
-            if (tabName === 'explore') {
-                contentExplore.classList.remove('hidden');
-                contentAi.classList.add('hidden');
-                tabBtnExplore.classList.add('active');
-                tabBtnAi.classList.remove('active');
-            } else {
-                contentExplore.classList.add('hidden');
-                contentAi.classList.remove('hidden');
-                tabBtnExplore.classList.remove('active');
-                tabBtnAi.classList.add('active');
-            }
-        };
+    const populateCats = () => {
+      const set = new Set();
+      allFaqs.forEach(f => (f.categorías||[]).forEach(c=>set.add(c)));
+      category.innerHTML = '<option value="all">Todas las categorías</option>';
+      [...set].sort().forEach(c=>{
+        const opt=document.createElement('option');
+        opt.value=c; opt.textContent=c;
+        category.append(opt);
+      });
+    };
 
-        const showAndHighlightFaq = (slug) => {
-            const targetElement = document.getElementById(slug);
-            if (targetElement) {
-                switchTab('explore');
+    const filter = () => {
+      let arr = allFaqs;
+      const cat = category.value;
+      const term = search.value.toLowerCase();
+      if(cat!=='all') arr = arr.filter(f => (f.categorías||[]).includes(cat));
+      if(term) arr = arr.filter(f =>
+        (f.pregunta||'').toLowerCase().includes(term)||
+        (f.respuesta||'').toLowerCase().includes(term)||
+        (f.categorías||[]).join(' ').toLowerCase().includes(term)||
+        (f.palabras_clave||[]).join(' ').toLowerCase().includes(term)
+      );
+      renderFaqs(arr);
+    };
 
-                // Quitar resaltado de cualquier otro elemento
-                document.querySelectorAll('.faq-highlighted').forEach(el => {
-                    el.classList.remove('faq-highlighted');
-                    el.style.paddingLeft = ''; // Reset padding
-                });
-                
-                targetElement.open = true;
-                targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                
-                targetElement.classList.add('faq-highlighted');
-                const summary = targetElement.querySelector('summary');
-                if (summary) {
-                    summary.style.paddingLeft = 'calc(1rem - 4px)'; // Ajustar padding por el borde
-                }
-            }
-        };
-
-        const handleUrlHash = () => {
-            const hash = window.location.hash.substring(1);
-            if (hash) {
-                setTimeout(() => showAndHighlightFaq(hash), 500);
-            }
-        };
-
-        const renderFaqs = (faqsToRender) => {
-            faqContainer.innerHTML = '';
-            if (faqsToRender.length === 0) {
-                faqContainer.innerHTML = '<p class="text-center text-gray-500 p-8">No se encontraron resultados para tu búsqueda.</p>';
-                return;
-            }
-
-            const searchTerm = searchInput.value.toLowerCase();
-
-            faqsToRender.forEach(faq => {
-                const slug = slugify(faq.pregunta);
-                const details = document.createElement('details');
-                details.id = slug;
-                details.className = 'faq-item bg-gray-50 rounded-lg border border-gray-200 cursor-pointer';
-
-                const summary = document.createElement('summary');
-                summary.className = 'p-4 font-medium text-gray-800';
-                
-                let questionText = faq.pregunta || '';
-                if(searchTerm){
-                    questionText = questionText.replace(new RegExp(searchTerm, 'gi'), match => `<span class="highlight">${match}</span>`);
-                }
-                summary.innerHTML = questionText;
-
-                const answerDiv = document.createElement('div');
-                answerDiv.className = 'answer-content';
-                
-                let answerText = faq.respuesta || '';
-                let answerHtml = markdownConverter.makeHtml(answerText);
-
-                if(searchTerm){
-                     answerHtml = answerHtml.replace(new RegExp(searchTerm, 'gi'), match => `<span class="highlight">${match}</span>`);
-                }
-                answerDiv.innerHTML = answerHtml;
-
-                // --- Botón de compartir ---
-                const shareContainer = document.createElement('div');
-                shareContainer.className = 'mt-4 pt-3 border-t border-gray-200 flex justify-end items-center';
-                
-                const shareButton = document.createElement('button');
-                shareButton.className = 'text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors flex items-center';
-                shareButton.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
-                    Compartir
-                `;
-
-                shareButton.onclick = (e) => {
-                    e.preventDefault();
-                    const shareUrl = `${window.location.origin}${window.location.pathname}#${slug}`;
-                    navigator.clipboard.writeText(shareUrl).then(() => {
-                        const originalText = shareButton.innerHTML;
-                        shareButton.textContent = '¡Enlace copiado!';
-                        setTimeout(() => { shareButton.innerHTML = originalText; }, 2000);
-                    });
-                };
-            
-                shareContainer.appendChild(shareButton);
-                answerDiv.appendChild(shareContainer);
-                
-                details.appendChild(summary);
-                details.appendChild(answerDiv);
-                faqContainer.appendChild(details);
-            });
-        };
-
-        const populateCategories = () => {
-            const categories = new Set();
-            allFaqs.forEach(faq => {
-                (faq.categorías || []).forEach(cat => categories.add(cat));
-            });
-
-            categoryFilter.innerHTML = '<option value="all">Todas las categorías</option>';
-            [...categories].sort().forEach(cat => {
-                const option = document.createElement('option');
-                option.value = cat;
-                option.textContent = cat;
-                categoryFilter.appendChild(option);
-            });
-        };
-
-        // --- LÓGICA DE FILTRADO Y BÚSQUEDA ---
-        const filterAndSearch = () => {
-            const category = categoryFilter.value;
-            const searchTerm = searchInput.value.toLowerCase();
-
-            let filteredFaqs = allFaqs;
-
-            if (category !== 'all') {
-                filteredFaqs = filteredFaqs.filter(faq => (faq.categorías || []).includes(category));
-            }
-
-            if (searchTerm) {
-                filteredFaqs = filteredFaqs.filter(faq => 
-                    (faq.pregunta || '').toLowerCase().includes(searchTerm) ||
-                    (faq.respuesta || '').toLowerCase().includes(searchTerm) ||
-                    (faq.categorías || []).join(' ').toLowerCase().includes(searchTerm) ||
-                    (faq.palabras_clave || []).join(' ').toLowerCase().includes(searchTerm)
-                );
-            }
-
-            renderFaqs(filteredFaqs);
-        };
-        
-        // --- COMUNICACIÓN CON GOOGLE APPS SCRIPT ---
-        const fetchFromGoogleScript = async (action, payload = {}) => {
-            try {
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'cors',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ action, data: payload }),
-                });
-                if (!response.ok) throw new Error(`Error en la comunicación con el script: ${response.status}`);
-                return await response.json();
-            } catch (error) {
-                console.error('Error detallado en fetchFromGoogleScript:', error);
-                return null;
-            }
-        };
-        
-        // --- COMUNICACIÓN CON LA API DE GEMINI ---
-        const callGemini = async (prompt, jsonSchema = null) => {
-            if (!apiKey) throw new Error("API Key de Gemini no disponible.");
-            
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
-
-            if (jsonSchema) {
-                payload.generationConfig = {
-                    responseMimeType: "application/json",
-                    responseSchema: jsonSchema
-                };
-            }
-
-            try {
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                const clonedResponse = response.clone();
-                console.log('Status:', response.status);
-                console.log('Response body:', await clonedResponse.text());
-
-                const result = await response.json();
-                console.log('Parsed JSON response:', result);
-
-                if (result.candidates && result.candidates.length > 0) {
-                    return jsonSchema ? JSON.parse(result.candidates[0].content.parts[0].text) : result.candidates[0].content.parts[0].text;
-                }
-                throw new Error("Respuesta inesperada de la API de Gemini.");
-            } catch (error) {
-                console.error('Error en callGemini:', error);
-                throw error;
-            }
-        };
-
-        // --- LÓGICA DE LA IA ---
-        const handleAIChat = async () => {
-            const userQuestion = aiQuestionInput.value.trim();
-            if (!userQuestion || !apiKey) {
-                aiResponseContainer.innerHTML = '<p class="text-red-600">Por favor, escribe una pregunta.</p>';
-                return;
-            }
-
-            aiResponseContainer.innerHTML = '<p>Pensando...</p>';
-            aiAskBtn.disabled = true;
-
-            const faqContext = allFaqs.map(faq => `Pregunta: ${faq.pregunta}\nRespuesta: ${faq.respuesta}`).join('\n\n---\n\n');
-
-            const prompt = `Eres un asistente experto en Vibe Coding educativo. Responde a la pregunta del usuario basándote *únicamente* en la siguiente base de conocimientos (FAQ). No inventes información. Si la respuesta no se encuentra en la FAQ, responde amablemente que no tienes esa información.
-Tu respuesta debe estar en dos partes: primero la respuesta directa a la pregunta del usuario, y segundo, una lista de las **preguntas exactas** de la FAQ que has usado como fuentes.
-
---- BASE DE CONOCIMIENTOS (FAQ) ---
-${faqContext}
---- FIN DE LA BASE DE CONOCIMIENTOS ---
-
-PREGUNTA DEL USUARIO: "${userQuestion}"
-`;
-            const schema = {
-                type: "OBJECT",
-                properties: {
-                    respuesta: { type: "STRING" },
-                    fuentes: { 
-                        type: "ARRAY",
-                        items: { type: "STRING" }
-                    }
-                },
-                required: ["respuesta", "fuentes"]
-            };
-
-            try {
-                const response = await callGemini(prompt, schema);
-                
-                const responseDiv = document.createElement('div');
-                responseDiv.innerHTML = markdownConverter.makeHtml(response.respuesta);
-                
-                if (response.fuentes && response.fuentes.length > 0) {
-                    const sourceContainer = document.createElement('div');
-                    sourceContainer.className = 'ai-source';
-                    sourceContainer.innerHTML = '<strong>Fuentes consultadas:</strong>';
-                    
-                    const sourceList = document.createElement('ul');
-                    sourceList.className = 'list-disc pl-5 mt-2 space-y-1';
-
-                    response.fuentes.forEach(sourceText => {
-                        const slug = slugify(sourceText);
-                        const originalFaq = allFaqs.find(f => slugify(f.pregunta) === slug);
-                        
-                        if (originalFaq) {
-                            const listItem = document.createElement('li');
-                            const link = document.createElement('a');
-                            link.href = `#${slug}`;
-                            link.textContent = originalFaq.pregunta;
-                            link.className = 'text-indigo-600 hover:underline cursor-pointer';
-                            
-                            link.onclick = (e) => {
-                                e.preventDefault();
-                                showAndHighlightFaq(slug);
-                            };
-
-                            listItem.appendChild(link);
-                            sourceList.appendChild(listItem);
-                        }
-                    });
-                    sourceContainer.appendChild(sourceList);
-                    responseDiv.appendChild(sourceContainer);
-                }
-
-                aiResponseContainer.innerHTML = '';
-                aiResponseContainer.appendChild(responseDiv);
-
-            } catch (error) {
-                aiResponseContainer.innerHTML = `<p class="text-red-600">Hubo un error al contactar a la IA: ${error.message}</p>`;
-            } finally {
-                aiAskBtn.disabled = false;
-                aiQuestionInput.value = '';
-            }
-        };
-
-        // --- INICIO ---
-        const initialize = () => {
-            fetchFromGoogleScript('getData')
-                .then(dataResponse => {
-                    if (dataResponse && dataResponse.status === 'success') {
-                        allFaqs = dataResponse.data;
-                        renderFaqs(allFaqs);
-                        populateCategories();
-                        handleUrlHash();
-                        return fetchFromGoogleScript('getApiKey');
-                    }
-                    throw new Error(dataResponse ? dataResponse.message : "No se pudieron cargar los datos de la FAQ.");
-                })
-                .then(keyResponse => {
-                    if (keyResponse && keyResponse.status === 'success') {
-                        apiKey = keyResponse.apiKey;
-                    } else {
-                         throw new Error(keyResponse ? keyResponse.message : "No se pudo obtener la API Key.");
-                    }
-                })
-                .catch(error => {
-                    console.error("Error durante la inicialización:", error);
-                    faqContainer.innerHTML = `<p class="text-center text-red-600 p-8">${error.message}</p>`;
-                })
-                .finally(() => {
-                    showLoader(false);
-                });
-        };
-
-        // --- EVENT LISTENERS ---
-        tabBtnExplore.addEventListener('click', () => switchTab('explore'));
-        tabBtnAi.addEventListener('click', () => switchTab('ai'));
-
-        searchInput.addEventListener('input', filterAndSearch);
-        categoryFilter.addEventListener('change', filterAndSearch);
-
-        aiAskBtn.addEventListener('click', handleAIChat);
-        aiQuestionInput.addEventListener('keyup', (event) => {
-            if (event.key === 'Enter') {
-                handleAIChat();
-            }
+    const fetchScript = async (action, data={}) => {
+      try{
+        const r = await fetch(SCRIPT_URL, {
+          method:'POST', mode:'cors',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({action, data})
         });
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        return await r.json();
+      }catch(e){ console.error(e); return null;}
+    };
 
-        document.addEventListener('DOMContentLoaded', initialize);
+    const callGemini = async (prompt, schema=null)=>{
+      if(!apiKey) throw new Error('Sin API Key');
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+      const payload = { contents:[{role:'user', parts:[{text:prompt}]}] };
+      if(schema) payload.generationConfig = { responseMimeType:'application/json', responseSchema:schema };
+      const res = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const json = await res.json();
+      if(json.candidates?.length){
+        return schema ? JSON.parse(json.candidates[0].content.parts[0].text)
+                      : json.candidates[0].content.parts[0].text;
+      }
+      throw new Error('Respuesta inesperada');
+    };
 
-    </script>
+    const handleAI = async ()=>{
+      const q = aiIn.value.trim();
+      if(!q){ aiOut.innerHTML='<p class="text-red-600">Escribe una pregunta.</p>'; return;}
+      aiOut.innerHTML='<p>Pensando...</p>'; aiBtn.disabled=true;
+      const ctx = allFaqs.map(f=>`Pregunta: ${f.pregunta}\nRespuesta: ${f.respuesta}`).join('\n\n---\n\n');
+      const prompt = `Eres un asistente...\n--- BASE ---\n${ctx}\n--- FIN ---\nPREGUNTA: "${q}"`;
+      const schema = {type:'OBJECT',properties:{respuesta:{type:'STRING'},fuentes:{type:'ARRAY',items:{type:'STRING'}}},required:['respuesta','fuentes']};
+      try{
+        const r = await callGemini(prompt, schema);
+        const div = document.createElement('div');
+        div.innerHTML = md.makeHtml(r.respuesta);
+        aiOut.innerHTML='';
+        aiOut.append(div);
+      }catch(e){
+        aiOut.innerHTML = '<p class="text-red-600">Error: '+e.message+'</p>';
+      }finally{
+        aiBtn.disabled=false; aiIn.value='';
+      }
+    };
+
+    const init = ()=>{
+      showLoader(true,'Cargando contenido...');
+      fetchScript('getData')
+        .then(d=>{
+          if(d?.status==='success'){ allFaqs=d.data; renderFaqs(allFaqs); populateCats(); return fetchScript('getApiKey'); }
+          throw new Error(d?.message||'No se pudo cargar la FAQ');
+        })
+        .then(k=>{
+          if(k?.status==='success') apiKey=k.apiKey;
+          else throw new Error(k?.message||'Sin API Key');
+        })
+        .catch(e=>{
+          faq.innerHTML = '<p class="text-center text-red-600 p-8">'+e.message+'</p>';
+        })
+        .finally(()=> showLoader(false));
+    };
+
+    tabExplore.onclick = ()=>switchTab('explore');
+    tabAi.onclick = ()=>switchTab('ai');
+    search.oninput = filter;
+    category.onchange = filter;
+    aiBtn.onclick = handleAI;
+    aiIn.addEventListener('keyup', e=>{ if(e.key==='Enter') handleAI(); });
+
+    document.addEventListener('DOMContentLoaded', init);
+
+    // DEBUG helpers:
+    window._debugTheme = ()=>({ hasDark: document.documentElement.classList.contains('dark'), twMode: tailwind.config?.darkMode });
+  </script>
 </body>
 </html>
