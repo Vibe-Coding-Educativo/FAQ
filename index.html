@@ -34,9 +34,61 @@
     .dark .highlight { background:#92400e; color:#fef3c7; }
     .ai-source { margin-top:1rem; padding-top:.75rem; border-top:1px solid #e5e7eb; font-size:.875rem; }
     .dark .ai-source { border-top-color:#374151; }
-    /* Estilos del resaltado actualizados a amarillo */
     .faq-highlighted { background:#fefce8!important; border-left:4px solid #eab308; }
     .dark .faq-highlighted { background:#4a441e!important; border-left-color:#facc15; }
+
+    /* Estilos para el contenido Markdown */
+    .answer-content ul, .answer-content ol {
+      padding-left: 1.5rem;
+      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .answer-content ul { list-style-type: disc; }
+    .answer-content ol { list-style-type: decimal; }
+    .answer-content li { margin-bottom: 0.25rem; }
+    .answer-content a {
+      color: #4f46e5;
+      text-decoration: underline;
+    }
+    .dark .answer-content a { color: #818cf8; }
+    .answer-content a:hover { text-decoration-thickness: 2px; }
+    .answer-content code {
+      background-color: #eef2ff;
+      color: #3730a3;
+      padding: 0.15rem 0.4rem;
+      border-radius: 0.25rem;
+      font-size: 0.9em;
+    }
+    .dark .answer-content code {
+      background-color: #374151;
+      color: #c7d2fe;
+    }
+    .answer-content pre {
+      background-color: #f3f4f6;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    .dark .answer-content pre { background-color: #1f2937; }
+    .answer-content pre code {
+      background-color: transparent;
+      color: inherit;
+      padding: 0;
+      border-radius: 0;
+    }
+    .answer-content blockquote {
+      border-left: 4px solid #d1d5db;
+      padding-left: 1rem;
+      margin-left: 0;
+      font-style: italic;
+      color: #6b7280;
+    }
+    .dark .answer-content blockquote {
+      border-left-color: #4b5563;
+      color: #9ca3af;
+    }
+
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
@@ -126,7 +178,12 @@
 
     let apiKey = null;
     let allFaqs = [];
-    const md = new showdown.Converter();
+    const md = new showdown.Converter({
+      tables: true,
+      strikethrough: true,
+      tasklists: true,
+      simpleLineBreaks: true
+    });
 
     // === BLOQUE NUEVO: HELPERS UNIVERSALES ===
     const normList = v =>
