@@ -182,6 +182,8 @@
     // === FUNCIÓN MODIFICADA ===
     const renderFaqs = (arr) => {
       faq.innerHTML = '';
+      const activeFilter = category.value;
+
       if (!arr.length) {
         faq.innerHTML = '<p class="text-center text-gray-500 dark:text-gray-400 p-8">Sin resultados.</p>';
         return;
@@ -205,9 +207,12 @@
         // Contenedor para las etiquetas
         const tagsContainer = document.createElement('div');
         tagsContainer.className = 'mb-4 flex flex-wrap gap-2';
-        const categories = getCats(f);
-        if (categories.length > 0) {
-            categories.forEach(catName => {
+        
+        const allCategories = getCats(f);
+        const visibleCategories = allCategories.filter(catName => activeFilter === 'all' || activeFilter !== catName);
+
+        if (visibleCategories.length > 0) {
+            visibleCategories.forEach(catName => {
                 const tagButton = document.createElement('button');
                 tagButton.textContent = catName;
                 tagButton.className = 'text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300 px-2.5 py-1 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500';
