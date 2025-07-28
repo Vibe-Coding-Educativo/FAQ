@@ -179,6 +179,7 @@
         }
     };
 
+    // === FUNCIÓN MODIFICADA ===
     const renderFaqs = (arr) => {
       faq.innerHTML = '';
       if (!arr.length) {
@@ -190,14 +191,41 @@
         const slug = slugify(f.pregunta);
         const details = document.createElement('details');
         details.id = slug;
-        details.className = 'faq-item bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer';
+        details.className = 'faq-item bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-gray-700';
         
         const summary = document.createElement('summary');
-        summary.className = 'p-4 font-medium text-gray-800 dark:text-gray-200';
+        summary.className = 'p-4 font-medium text-gray-800 dark:text-gray-200 cursor-pointer list-inside';
+        
+        const summaryContent = document.createElement('div');
+        
         let q = f.pregunta || '';
         if (term) q = q.replace(new RegExp(term, 'gi'), m => `<span class="highlight">${m}</span>`);
-        summary.innerHTML = q;
+        const questionSpan = document.createElement('span');
+        questionSpan.innerHTML = q;
         
+        const tagsContainer = document.createElement('div');
+        tagsContainer.className = 'mt-3 flex flex-wrap gap-2';
+
+        const categories = getCats(f);
+        if (categories.length > 0) {
+            categories.forEach(catName => {
+                const tagButton = document.createElement('button');
+                tagButton.textContent = catName;
+                tagButton.className = 'text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300 px-2.5 py-1 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500';
+                tagButton.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    category.value = catName;
+                    filter();
+                };
+                tagsContainer.appendChild(tagButton);
+            });
+        }
+        
+        summaryContent.appendChild(questionSpan);
+        summaryContent.appendChild(tagsContainer);
+        summary.appendChild(summaryContent);
+
         const ans = document.createElement('div');
         ans.className = 'answer-content text-gray-700 dark:text-gray-300';
         let a = md.makeHtml(f.respuesta || '');
@@ -246,7 +274,6 @@
         });
     };
 
-    // === FUNCIÓN REESCRITA ===
     const filter = () => {
       let arr = allFaqs;
       const cat  = category.value;
