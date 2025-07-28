@@ -195,17 +195,16 @@
         
         const summary = document.createElement('summary');
         summary.className = 'p-4 font-medium text-gray-800 dark:text-gray-200 cursor-pointer list-inside';
-        
-        const summaryContent = document.createElement('div');
-        
         let q = f.pregunta || '';
         if (term) q = q.replace(new RegExp(term, 'gi'), m => `<span class="highlight">${m}</span>`);
-        const questionSpan = document.createElement('span');
-        questionSpan.innerHTML = q;
+        summary.innerHTML = q;
         
-        const tagsContainer = document.createElement('div');
-        tagsContainer.className = 'mt-3 flex flex-wrap gap-2';
+        const ans = document.createElement('div');
+        ans.className = 'answer-content text-gray-700 dark:text-gray-300';
 
+        // Contenedor para las etiquetas
+        const tagsContainer = document.createElement('div');
+        tagsContainer.className = 'mb-4 flex flex-wrap gap-2';
         const categories = getCats(f);
         if (categories.length > 0) {
             categories.forEach(catName => {
@@ -220,17 +219,16 @@
                 };
                 tagsContainer.appendChild(tagButton);
             });
+            // Añadir el contenedor de etiquetas al inicio del contenido de la respuesta
+            ans.appendChild(tagsContainer);
         }
-        
-        summaryContent.appendChild(questionSpan);
-        summaryContent.appendChild(tagsContainer);
-        summary.appendChild(summaryContent);
 
-        const ans = document.createElement('div');
-        ans.className = 'answer-content text-gray-700 dark:text-gray-300';
+        // Contenedor para el texto de la respuesta
+        const answerText = document.createElement('div');
         let a = md.makeHtml(f.respuesta || '');
         if (term) a = a.replace(new RegExp(term, 'gi'), m => `<span class="highlight">${m}</span>`);
-        ans.innerHTML = a;
+        answerText.innerHTML = a;
+        ans.appendChild(answerText);
 
         const shareContainer = document.createElement('div');
         shareContainer.className = 'mt-4 pt-3 border-t border-gray-200 dark:border-gray-600 flex justify-end items-center';
