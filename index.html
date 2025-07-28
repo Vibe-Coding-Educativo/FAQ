@@ -63,7 +63,7 @@
         </button>
         <button id="tab-ai"
           class="tab-button whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm sm:text-base text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-500">
-          Preguntar a la IA
+          Pregunta a la IA
         </button>
       </nav>
     </div>
@@ -109,7 +109,7 @@
 
     // ===  APP ===
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz3mmQ8cWOwExcbRfK8SLPrOlh8jIeybEzdLqLVZbISlJM6W14VGrVBkHxb93QLVVqUkg/exec';
-    const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+    const GEMINI_MODEL = 'gemini-1.5-flash-latest';
 
     const loader = document.getElementById('loader');
     const loaderText = document.getElementById('loader-text');
@@ -179,6 +179,7 @@
         }
     };
 
+    // === FUNCIÓN MODIFICADA ===
     const renderFaqs = (arr) => {
       faq.innerHTML = '';
       if (!arr.length) {
@@ -190,19 +191,44 @@
         const slug = slugify(f.pregunta);
         const details = document.createElement('details');
         details.id = slug;
-        details.className = 'faq-item bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer';
+        details.className = 'faq-item bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-gray-700';
         
         const summary = document.createElement('summary');
-        summary.className = 'p-4 font-medium text-gray-800 dark:text-gray-200';
+        summary.className = 'p-4 font-medium text-gray-800 dark:text-gray-200 cursor-pointer list-inside';
         let q = f.pregunta || '';
         if (term) q = q.replace(new RegExp(term, 'gi'), m => `<span class="highlight">${m}</span>`);
         summary.innerHTML = q;
         
         const ans = document.createElement('div');
         ans.className = 'answer-content text-gray-700 dark:text-gray-300';
+
+        // Contenedor para las etiquetas
+        const tagsContainer = document.createElement('div');
+        tagsContainer.className = 'mb-4 flex flex-wrap gap-2';
+        const categories = getCats(f);
+        if (categories.length > 0) {
+            categories.forEach(catName => {
+                const tagButton = document.createElement('button');
+                tagButton.textContent = catName;
+                tagButton.className = 'text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300 px-2.5 py-1 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500';
+                tagButton.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    category.value = catName;
+                    filter();
+                };
+                tagsContainer.appendChild(tagButton);
+            });
+            // Añadir el contenedor de etiquetas al inicio del contenido de la respuesta
+            ans.appendChild(tagsContainer);
+        }
+
+        // Contenedor para el texto de la respuesta
+        const answerText = document.createElement('div');
         let a = md.makeHtml(f.respuesta || '');
         if (term) a = a.replace(new RegExp(term, 'gi'), m => `<span class="highlight">${m}</span>`);
-        ans.innerHTML = a;
+        answerText.innerHTML = a;
+        ans.appendChild(answerText);
 
         const shareContainer = document.createElement('div');
         shareContainer.className = 'mt-4 pt-3 border-t border-gray-200 dark:border-gray-600 flex justify-end items-center';
@@ -226,20 +252,26 @@
       });
     };
 
-    // === FUNCIÓN REESCRITA ===
     const populateCats = () => {
-      const set = new Set();
-      allFaqs.forEach(f => getCats(f).forEach(c => set.add(c)));
-      category.innerHTML = '<option value="all">Todas las categorías</option>';
-      [...set].sort().forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c;
-        opt.textContent = c;
-        category.append(opt);
-      });
+        const catCounts = {};
+        allFaqs.forEach(f => {
+            const cats = getCats(f);
+            cats.forEach(c => {
+                catCounts[c] = (catCounts[c] || 0) + 1;
+            });
+        });
+
+        category.innerHTML = '<option value="all">Todas las categorías</option>';
+        const sortedCats = Object.keys(catCounts).sort();
+
+        sortedCats.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = `${c} (${catCounts[c]})`;
+            category.append(opt);
+        });
     };
 
-    // === FUNCIÓN REESCRITA ===
     const filter = () => {
       let arr = allFaqs;
       const cat  = category.value;
@@ -347,38 +379,32 @@ PREGUNTA DEL USUARIO: "${q}"
     };
 
     const init = () => {
-      showLoader(true, 'Cargando contenido...');
-      fetchScript('getData')
-        .then(d => {
-          if (d?.status === 'success') {
-            // === BLOQUE MODIFICADO: NORMALIZAR DATOS AL RECIBIRLOS ===
-            allFaqs = d.data.map(f => {
-              const cats = getCats(f);
-              const kws  = getKws(f);
-              return {
-                ...f,
-                categorías: cats,   // con tilde
-                categorias: cats,   // sin tilde, para compatibilidad
-                palabras_clave: kws
-              };
-            });
-            // === FIN DEL BLOQUE MODIFICADO ===
+        showLoader(true, 'Cargando contenido...');
+        fetchScript('getData')
+            .then(d => {
+                if (d?.status === 'success') {
+                    allFaqs = d.data.map(f => {
+                        const cats = getCats(f);
+                        const kws = getKws(f);
+                        return { ...f, categorías: cats, categorias: cats, palabras_clave: kws };
+                    });
 
-            renderFaqs(allFaqs);
-            populateCats();
-            handleUrlHash();
-            return fetchScript('getApiKey');
-          }
-          throw new Error(d?.message || 'No se pudo cargar la FAQ');
-        })
-        .then(k => {
-          if (k?.status === 'success') apiKey = k.apiKey;
-          else throw new Error(k?.message || 'Sin API Key');
-        })
-        .catch(e => {
-          faq.innerHTML = '<p class="text-center text-red-600 p-8">' + e.message + '</p>';
-        })
-        .finally(() => showLoader(false));
+                    tabExplore.textContent = `Explorar FAQ (${allFaqs.length})`;
+                    renderFaqs(allFaqs);
+                    populateCats();
+                    handleUrlHash();
+                    return fetchScript('getApiKey');
+                }
+                throw new Error(d?.message || 'No se pudo cargar la FAQ');
+            })
+            .then(k => {
+                if (k?.status === 'success') apiKey = k.apiKey;
+                else throw new Error(k?.message || 'Sin API Key');
+            })
+            .catch(e => {
+                faq.innerHTML = '<p class="text-center text-red-600 p-8">' + e.message + '</p>';
+            })
+            .finally(() => showLoader(false));
     };
 
     tabExplore.onclick = () => switchTab('explore');
