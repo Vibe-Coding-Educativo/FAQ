@@ -470,7 +470,26 @@ PREGUNTA DEL USUARIO: "${q}"
     };
 
     tabExplore.onclick = () => switchTab('explore');
-    tabAi.onclick = () => switchTab('ai');
+    
+    // === LÓGICA MODIFICADA ===
+    tabAi.onclick = () => {
+      let filtersChanged = false;
+      if (category.value !== 'all') {
+        category.value = 'all';
+        filtersChanged = true;
+      }
+      if (search.value !== '') {
+        search.value = '';
+        filtersChanged = true;
+      }
+      
+      if (filtersChanged) {
+        filter();
+      }
+      
+      switchTab('ai');
+    };
+
     search.oninput = filter;
     category.onchange = filter;
     aiBtn.onclick = handleAI;
