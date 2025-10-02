@@ -7,6 +7,24 @@
 const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1JuiO4-mm_SJRUaERW3soThRn-LpZMy1R3x3RRuc0ArU/edit';
 const SHEET_NAME = 'FAQ';
 
+// --- UTILIDADES DE RESPUESTA HTTP ---
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+const jsonResponse = (payload) => {
+  const output = ContentService
+    .createTextOutput(JSON.stringify(payload))
+    .setMimeType(ContentService.MimeType.JSON);
+
+  if (typeof output.setHeader === 'function') {
+    Object.entries(corsHeaders).forEach(([key, value]) => output.setHeader(key, value));
+  }
+  return output;
+};
+
 // --- FUNCIONES DE UTILIDAD ---
 const norm = s => s.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().replace(/\s+/g, '_');
 const splitList = v => v ? v.toString().split(/[;,|]/).map(x => x.trim()).filter(Boolean) : [];
@@ -44,16 +62,16 @@ function doPost(e) {
         response = { status: 'error', message: 'Acción no reconocida' };
     }
     
-    return ContentService
-      .createTextOutput(JSON.stringify(response))
-      .setMimeType(ContentService.MimeType.JSON);
+    return jsonResponse(response);
   } catch (error) {
     Logger.log(error.toString());
     const errorResponse = { status: 'error', message: error.toString() };
-    return ContentService
-      .createTextOutput(JSON.stringify(errorResponse))
-      .setMimeType(ContentService.MimeType.JSON);
+    return jsonResponse(errorResponse);
   }
+}
+
+function doGet() {
+  return jsonResponse({ status: 'ok', message: 'FAQ backend activo' });
 }
 
 // --- FUNCIONES DE ACCESO A DATOS (API) ---
