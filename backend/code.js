@@ -119,8 +119,16 @@ function getData() {
         palabras_clave: splitList(getCell('palabras_clave'))
       };
     });
+    const filtered = data.filter(item => {
+      const question = (item.pregunta || '').toString().trim();
+      const answer = (item.respuesta || '').toString().trim();
+      const cats = Array.isArray(item['categorías']) ? item['categorías'] : [];
+      const kws = Array.isArray(item.palabras_clave) ? item.palabras_clave : [];
+      const hasArrays = cats.length > 0 || kws.length > 0;
+      return question || answer || hasArrays;
+    });
     
-    return { status: 'success', data: data };
+    return { status: 'success', data: filtered };
   } catch (error) {
     Logger.log(error.toString());
     return { status: 'error', message: `Error al leer la hoja: ${error.toString()}` };
