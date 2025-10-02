@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The repository ahora separa responsabilidades por carpeta. `frontend/index.html` es la interfaz principal que consulta el endpoint de Apps Script, mientras que `frontend/legacy/index2.html` conserva una versión heredada. Los recursos estáticos (`faq.png`, `favicon.ico`) residen en `frontend/assets/` para acompañar a la página. El código de servidor vive en `backend/code.js`, sincronizado con el proyecto de Apps Script mediante `clasp`. Documentación y guías de contribución se guardan en `docs/`.
+El repositorio separa responsabilidades por carpeta. `frontend/index.html` es la interfaz principal que consulta el endpoint de Apps Script, con los recursos estáticos (`faq.png`, `favicon.ico`) en `frontend/assets/`. El código de servidor vive en `backend/code.js`, sincronizado con el proyecto de Apps Script mediante `clasp`. Documentación y guías de contribución se guardan en `docs/`.
 
 ## Build, Test, and Development Commands
 - `cd frontend && python3 -m http.server 8080` — serves the static site locally so you can exercise search, category filters, and AI interactions without deploying.
